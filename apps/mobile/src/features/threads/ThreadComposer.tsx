@@ -56,6 +56,8 @@ import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { themeColorWithAlpha } from "../../lib/mobileTheme";
 import { armAgentAwarenessLiveActivityForLocalWork } from "../agent-awareness/remoteRegistration";
 import { scopedThreadKey } from "../../lib/scopedEntities";
+import { contextUsedPercentage } from "../../lib/contextWindow";
+import { useThreadProjection } from "../../state/use-thread-detail";
 import {
   getComposerDraftSnapshot,
   composerDraftsAtom,
@@ -230,6 +232,23 @@ const FOLLOW_UP_ACTION_SUBTITLE = {
   restart: "Start the turn over with this message",
 } as const;
 
+function ContextUsageLabel(props: { readonly percentage: number | null }) {
+  if (props.percentage === null) return null;
+  const rounded = Math.round(props.percentage);
+  return (
+    <Text
+      accessibilityLabel={`${rounded}% of context used`}
+      className={
+        rounded >= 90
+          ? "px-1 text-2xs font-t3-bold text-danger-foreground"
+          : "px-1 text-2xs text-foreground-muted"
+      }
+    >
+      {rounded}%
+    </Text>
+  );
+}
+
 function SendActionButton(props: {
   readonly accessibilityLabel: string;
   readonly presentation: ComposerSendPresentation;
@@ -342,6 +361,11 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
   const fallbackInputRef = useRef<ComposerEditorHandle>(null);
   const inputRef = props.editorRef ?? fallbackInputRef;
   const [isFocused, setIsFocused] = useState(false);
+  const threadProjection = useThreadProjection({
+    environmentId: props.environmentId,
+    threadId: props.selectedThread.id,
+  });
+  const contextPercentage = contextUsedPercentage(threadProjection?.projection ?? null);
   const pendingPastedTextAttachmentCountRef = useRef(0);
   const [pendingPastedTextAttachmentCount, setPendingPastedTextAttachmentCount] = useState(0);
   const settingsSheetPresentation = useThreadSettingsSheetPresentation({
@@ -1039,6 +1063,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
             ) : null}
             {!isExpanded ? (
               <View className="flex-row items-center">
+                <ContextUsageLabel percentage={contextPercentage} />
                 <ComposerDictationStartAction
                   state={voiceInput.state}
                   isAvailable={voiceInput.isAvailable}
@@ -1139,6 +1164,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                   </View>
                 )}
                 <View className="shrink-0 flex-row items-center">
+                  <ContextUsageLabel percentage={contextPercentage} />
                   <ComposerDictationPrimaryAction
                     state={voiceInput.state}
                     presentation={voicePresentation}
