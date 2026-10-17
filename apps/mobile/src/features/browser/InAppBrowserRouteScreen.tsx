@@ -93,8 +93,7 @@ export function InAppBrowserRouteScreen({ route }: InAppBrowserRouteScreenProps)
 
   return (
     <View className="flex-1 bg-sheet" style={{ paddingTop: insets.top }}>
-      <View className="flex-row items-center gap-1 px-2 pb-2 pt-1">
-        <ToolbarButton icon="xmark" label="Close browser" onPress={() => navigation.goBack()} />
+      <View className="flex-row items-center gap-1 pb-2 pl-3 pr-2 pt-1">
         <View className="h-10 min-w-0 flex-1 flex-row items-center rounded-xl bg-subtle-strong px-3">
           <AppTextInput
             accessibilityLabel="Address"
@@ -168,6 +167,7 @@ export function InAppBrowserRouteScreen({ route }: InAppBrowserRouteScreenProps)
           label="Open in Safari"
           onPress={() => void Linking.openURL(currentUrl).catch(() => undefined)}
         />
+        <ToolbarButton icon="xmark" label="Close browser" onPress={() => navigation.goBack()} />
       </View>
     </View>
   );
