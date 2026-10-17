@@ -16,6 +16,7 @@ import {
 } from "@t3tools/contracts";
 import type { ComposerEnterBehavior } from "../lib/composerEnterBehavior";
 import type { FollowUpBehavior } from "../lib/followUpBehavior";
+import type { DictationDictionaryEntry } from "../lib/dictationDictionary";
 import { isMicrophoneKind, type MicrophoneEntry } from "../lib/microphonePriority";
 import { MOBILE_THEME_IDS, type MobileThemeId, type MobileThemeMode } from "../lib/mobileTheme";
 import * as MobileDatabase from "./mobile-database";
@@ -71,6 +72,8 @@ export interface Preferences {
   readonly composerEnterBehavior?: ComposerEnterBehavior;
   readonly followUpBehavior?: FollowUpBehavior;
   readonly microphones?: ReadonlyArray<MicrophoneEntry>;
+  /** Corrections applied to dictation transcripts. */
+  readonly dictationDictionary?: ReadonlyArray<DictationDictionaryEntry>;
   readonly projectGroupingEnabled?: boolean;
   readonly projectGroupingMode?: SidebarProjectGroupingMode;
   readonly planModeEnabled?: boolean;
@@ -143,6 +146,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     composerEnterBehavior?: ComposerEnterBehavior;
     followUpBehavior?: FollowUpBehavior;
     microphones?: ReadonlyArray<MicrophoneEntry>;
+    dictationDictionary?: ReadonlyArray<DictationDictionaryEntry>;
     projectGroupingEnabled?: boolean;
     projectGroupingMode?: SidebarProjectGroupingMode;
     planModeEnabled?: boolean;
@@ -235,6 +239,17 @@ function sanitizePreferences(parsed: Preferences): Preferences {
         ? [{ kind: entry.kind, uid: entry.uid, name: entry.name }]
         : [];
     });
+  }
+  if (Array.isArray(parsed.dictationDictionary)) {
+    preferences.dictationDictionary = parsed.dictationDictionary.flatMap(
+      (entry): DictationDictionaryEntry[] =>
+        typeof entry === "object" &&
+        entry !== null &&
+        typeof entry.word === "string" &&
+        typeof entry.replacement === "string"
+          ? [{ word: entry.word, replacement: entry.replacement }]
+          : [],
+    );
   }
   if (typeof parsed.projectGroupingEnabled === "boolean") {
     preferences.projectGroupingEnabled = parsed.projectGroupingEnabled;

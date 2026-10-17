@@ -597,6 +597,40 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     ],
   );
 
+  // Send while recording: finish dictation, then send once the transcript is in the draft.
+  const [pendingDictationSend, setPendingDictationSend] = useState<{
+    readonly followUp?: ActiveTurnComposerAction;
+  } | null>(null);
+  const isDictationRecording = voiceInput.state.phase === "recording";
+  const sendsDictation = isDictationRecording || pendingDictationSend !== null;
+  const canSendDictation =
+    isDictationRecording &&
+    pendingDictationSend === null &&
+    (props.canOperateThread || props.connectionState !== "connected") &&
+    !contextImports[composerDraftKey] &&
+    sendBlockedReason === null &&
+    !modelUnavailable;
+  const { stop: stopVoiceInput, cancel: cancelVoiceInput } = voiceInput;
+  const sendDictation = useCallback(
+    (followUp?: ActiveTurnComposerAction) => {
+      setPendingDictationSend({ followUp });
+      void stopVoiceInput();
+    },
+    [stopVoiceInput],
+  );
+  const cancelDictation = useCallback(() => {
+    setPendingDictationSend(null);
+    cancelVoiceInput();
+  }, [cancelVoiceInput]);
+  useEffect(() => {
+    if (pendingDictationSend === null) return;
+    const phase = voiceInput.state.phase;
+    if (phase === "preparing" || phase === "recording" || phase === "transcribing") return;
+    setPendingDictationSend(null);
+    // An error keeps the draft unsent; idle means the transcript was committed.
+    if (phase === "idle") void handleSend(pendingDictationSend.followUp);
+  }, [pendingDictationSend, voiceInput.state.phase, handleSend]);
+
   const lockedProviderInstanceId = props.canSwitchProvider
     ? undefined
     : currentModelSelection.instanceId;
@@ -1010,9 +1044,16 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                   state={voiceInput.state}
                   isAvailable={voiceInput.isAvailable}
                   onStart={voiceInput.start}
-                  onCancel={voiceInput.cancel}
+                  onCancel={cancelDictation}
                 />
-                {showStopAction ? (
+                {sendsDictation ? (
+                  <SendActionButton
+                    accessibilityLabel="Finish dictation and send"
+                    presentation={sendPresentation}
+                    disabled={!canSendDictation}
+                    onSend={sendDictation}
+                  />
+                ) : showStopAction ? (
                   <ComposerActionButton
                     accessibilityLabel="Stop agent"
                     icon="stop.fill"
@@ -1061,7 +1102,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
               >
                 <ComposerDictationCancelAction
                   presentation={voicePresentation}
-                  onCancel={voiceInput.cancel}
+                  onCancel={cancelDictation}
                 />
                 {isVoiceInputPresented ? (
                   <ComposerDictationStatus
@@ -1105,9 +1146,16 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                     isAvailable={voiceInput.isAvailable}
                     onStart={voiceInput.start}
                     onConfirm={voiceInput.stop}
-                    onCancel={voiceInput.cancel}
+                    onCancel={cancelDictation}
                   />
-                  {showStopAction ? (
+                  {sendsDictation ? (
+                    <SendActionButton
+                      accessibilityLabel="Finish dictation and send"
+                      presentation={sendPresentation}
+                      disabled={!canSendDictation}
+                      onSend={sendDictation}
+                    />
+                  ) : showStopAction ? (
                     <ComposerActionButton
                       accessibilityLabel="Stop agent"
                       icon="stop.fill"

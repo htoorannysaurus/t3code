@@ -8,8 +8,9 @@ import Reanimated, { ReduceMotion, useAnimatedStyle, withTiming } from "react-na
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type AppSymbolName, SymbolView } from "../../components/ui/AppSymbol";
-import { AppText as Text } from "../../components/ui/AppText";
+import { AppText as Text, AppTextInput } from "../../components/ui/AppText";
 import { cn } from "../../lib/cn";
+import { formatDictationDictionary, parseDictationDictionary } from "../../lib/dictationDictionary";
 import {
   isMicrophoneDevice,
   type MicrophoneEntry,
@@ -95,6 +96,11 @@ export function SettingsMicrophoneRouteScreen() {
     AsyncResult.isSuccess(preferencesResult) ? preferencesResult.value.microphones : undefined,
   );
   const hasDevices = entries.some(isMicrophoneDevice);
+  const dictionaryText = formatDictationDictionary(
+    AsyncResult.isSuccess(preferencesResult)
+      ? (preferencesResult.value.dictationDictionary ?? [])
+      : [],
+  );
   const { permission, request: requestPermission } = useMicrophonePermission();
   const [editing, setEditing] = useState(false);
   const [drag, setDrag] = useState<{ readonly key: string; readonly translation: number } | null>(
@@ -215,7 +221,31 @@ export function SettingsMicrophoneRouteScreen() {
         <Text className="px-2 text-sm text-foreground-muted">
           Voice input records from the first connected microphone in this list. Wired and Bluetooth
           devices are added by name after you use voice input with them connected; until then, the
-          Other row ranks them.
+          Other row ranks them. Bluetooth headphones keep playing audio while you dictate, so voice
+          input records from this device instead of their microphone.
+        </Text>
+        <SettingsSection title="Dictionary">
+          <AppTextInput
+            key={dictionaryText}
+            accessibilityLabel="Dictation dictionary"
+            defaultValue={dictionaryText}
+            placeholder={"cloud pewter => Claudeputer"}
+            editable={ready}
+            multiline
+            autoCapitalize="none"
+            autoCorrect={false}
+            className="min-h-24 px-4 py-3 text-base text-foreground"
+            onEndEditing={(event) => {
+              const dictionary = parseDictationDictionary(event.nativeEvent.text);
+              if (formatDictationDictionary(dictionary) !== dictionaryText) {
+                savePreferences({ transform: () => ({ dictationDictionary: dictionary }) });
+              }
+            }}
+          />
+        </SettingsSection>
+        <Text className="px-2 text-sm text-foreground-muted">
+          One correction per line, written as heard =&gt; meant. Transcripts are corrected before
+          they reach the composer. Matching ignores case and only replaces whole words.
         </Text>
       </ScrollView>
     </View>

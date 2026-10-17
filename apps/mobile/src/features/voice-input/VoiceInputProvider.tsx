@@ -29,6 +29,7 @@ import {
   preferredMicrophoneInput,
   rememberMicrophones,
 } from "../../lib/microphonePriority";
+import { withDictationDictionary } from "../../lib/dictationDictionary";
 import { getLocalVoiceTranscriber } from "../../native/voiceTranscription";
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
 import { getNativeShowcaseScene } from "../showcase/nativeShowcaseScene";
@@ -56,28 +57,46 @@ const VOICE_RECORDING_OPTIONS = {
   ...(Platform.OS === "ios" ? IOS_RECORDING_OPTIONS : ANDROID_RECORDING_OPTIONS),
 };
 
-async function releaseVoiceRecordingAudio(): Promise<void> {
+// Rewriting the audio mode or deactivating the session changes the route, and every
+// route change pauses other apps' audio for about a second. Between takes the session
+// stays configured and active; it is released when the app leaves the foreground.
+let recordingAudioHeld = false;
+
+async function deactivateVoiceRecordingAudio(): Promise<void> {
+  recordingAudioHeld = false;
   try {
     await setAudioModeAsync({ allowsRecording: false });
   } finally {
     // Expo does not deactivate AVAudioSession when recording stops or its
-    // category changes. Explicit deactivation resumes interrupted app audio.
+    // category changes. Explicit deactivation hands the route back.
     await setIsAudioActiveAsync(false);
   }
 }
 
+async function releaseVoiceRecordingAudio(): Promise<void> {
+  if (AppState.currentState === "active") {
+    recordingAudioHeld = true;
+    return;
+  }
+  await deactivateVoiceRecordingAudio();
+}
+
 async function configureVoiceRecordingAudio(): Promise<void> {
+  if (recordingAudioHeld) return;
   try {
+    // Mix with other apps and keep Bluetooth headphones on A2DP so dictation
+    // records from the phone without pausing or degrading playing audio.
     await setAudioModeAsync({
       allowsRecording: true,
-      interruptionMode: "doNotMix",
+      interruptionMode: "mixWithOthers",
       playsInSilentMode: true,
       shouldPlayInBackground: false,
+      preserveBluetoothPlayback: true,
     });
     await setIsAudioActiveAsync(true);
   } catch (error) {
     try {
-      await releaseVoiceRecordingAudio();
+      await deactivateVoiceRecordingAudio();
     } catch {}
     throw error;
   }
@@ -153,7 +172,13 @@ function useVoiceInputRuntime() {
     recorderRef.current = recorder;
     sessionRef.current = new VoiceInputSession({
       recorder,
-      getTranscriber: getLocalVoiceTranscriber,
+      getTranscriber: () =>
+        withDictationDictionary(getLocalVoiceTranscriber(), () => {
+          const preferences = registry.get(mobilePreferencesAtom);
+          return AsyncResult.isSuccess(preferences)
+            ? (preferences.value.dictationDictionary ?? [])
+            : [];
+        }),
       requestPermission: async () => {
         const permission = await requestRecordingPermissionsAsync();
         return { granted: permission.granted, canAskAgain: permission.canAskAgain };
@@ -179,7 +204,10 @@ function useVoiceInputRuntime() {
       // iOS reports `inactive` while its permission dialog is open. Only the
       // real background state cancels preparation; recorder status handles
       // calls and route interruptions during capture.
-      if (nextState === "background") controller.appMovedToBackground();
+      if (nextState !== "background") return;
+      void Promise.resolve(controller.appMovedToBackground()).finally(() => {
+        if (recordingAudioHeld) void deactivateVoiceRecordingAudio().catch(() => {});
+      });
     });
     return () => subscription.remove();
   }, [controller]);

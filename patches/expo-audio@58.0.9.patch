@@ -1,8 +1,73 @@
+diff --git a/build/Audio.types.d.ts b/build/Audio.types.d.ts
+index 332b0c2f38310616c6bff64cb86fc8d5688d1280..388804bea93097abba11ab4d50234a89ecf7404b 100644
+--- a/build/Audio.types.d.ts
++++ b/build/Audio.types.d.ts
+@@ -599,6 +599,12 @@ export type AudioMode = {
+      * @platform ios
+      */
+     allowsRecording: boolean;
++    /**
++     * iOS only. Records from the phone microphone and keeps Bluetooth headphones on A2DP
++     * so other apps' audio keeps playing at full quality. Requires `allowsRecording`.
++     * @default false
++     */
++    preserveBluetoothPlayback?: boolean;
+     /**
+      * Whether the audio session stays active when the app moves to the background.
+      *
+diff --git a/ios/AudioModule.swift b/ios/AudioModule.swift
+index 42ce9e8f213ebc243db25ef836456757b0daeb09..b530bcd7320bc01adf93fd64eedacdcdf49b817b 100644
+--- a/ios/AudioModule.swift
++++ b/ios/AudioModule.swift
+@@ -892,18 +892,27 @@ public class AudioModule: Module {
+         if !mode.shouldRouteThroughEarpiece {
+           categoryOptions.insert(.defaultToSpeaker)
+         }
++        if mode.preserveBluetoothPlayback {
++          // A2DP has no microphone: record from the phone and keep headphones on music
++          // quality. iOS prefers HFP when both are allowed, so never combine them.
++          categoryOptions.insert(.allowBluetoothA2DP)
++        } else {
+ #if compiler(>=6.2) // Xcode 26
+-        categoryOptions.insert(.allowBluetoothHFP)
++          categoryOptions.insert(.allowBluetoothHFP)
+ #else
+-        categoryOptions.insert(.allowBluetooth)
++          categoryOptions.insert(.allowBluetooth)
+ #endif
++        }
+       }
+ #endif
+ 
+       sessionOptions = categoryOptions
+     }
+ 
+-    if sessionOptions.isEmpty {
++    if mode.preserveBluetoothPlayback {
++      // Reset the mode too: a previous voiceChat mode implicitly enables Bluetooth HFP.
++      try session.setCategory(category, mode: .default, options: sessionOptions)
++    } else if sessionOptions.isEmpty {
+       try session.setCategory(category, mode: .default)
+     } else {
+       try session.setCategory(category, options: sessionOptions)
 diff --git a/ios/AudioRecorder.swift b/ios/AudioRecorder.swift
-index 198fe6d..5b39611 100644
+index 198fe6dc95b564ff3916657f14ea67fc44d2e424..e55f7b171552e2df46910bae400fdc5c5b642ede 100644
 --- a/ios/AudioRecorder.swift
 +++ b/ios/AudioRecorder.swift
-@@ -285,16 +285,16 @@ class AudioRecorder: SharedRef<AVAudioRecorder>, RecordingResultHandler {
+@@ -92,7 +92,11 @@ class AudioRecorder: SharedRef<AVAudioRecorder>, RecordingResultHandler {
+ 
+     let session = AVAudioSession.sharedInstance()
+     do {
+-      try session.setCategory(.playAndRecord, mode: .default, options: sessionOptions)
++      // Reapplying an identical category to an active route interrupts mixed
++      // Bluetooth playback, so leave a matching configuration alone.
++      if session.category != .playAndRecord || session.mode != .default || session.categoryOptions != sessionOptions {
++        try session.setCategory(.playAndRecord, mode: .default, options: sessionOptions)
++      }
+       try session.setActive(true)
+     } catch {
+       currentState = .error
+@@ -285,16 +289,16 @@ class AudioRecorder: SharedRef<AVAudioRecorder>, RecordingResultHandler {
    }
  
    func didFinish(_ recorder: AVAudioRecorder, successfully flag: Bool) {
@@ -23,3 +88,32 @@ index 198fe6d..5b39611 100644
        "url": recorder.url.absoluteString
      ])
    }
+diff --git a/ios/AudioRecords.swift b/ios/AudioRecords.swift
+index d331e804fab76a53c24eae7b22417935404aa765..8f636fb160f138003964ea79ed1e4800bddf739f 100644
+--- a/ios/AudioRecords.swift
++++ b/ios/AudioRecords.swift
+@@ -4,6 +4,7 @@ struct AudioMode: Record {
+   @Field var playsInSilentMode: Bool = false
+   @Field var interruptionMode: InterruptionMode = .mixWithOthers
+   @Field var allowsRecording: Bool = false
++  @Field var preserveBluetoothPlayback: Bool = false
+   @Field var shouldPlayInBackground: Bool = false
+   @Field var shouldRouteThroughEarpiece: Bool = false
+   @Field var allowsBackgroundRecording: Bool = false
+diff --git a/src/Audio.types.ts b/src/Audio.types.ts
+index fe5f5c3a08d2be39b0fdb1da6ae6b158931cac4c..827aea2828c9a8f1e65d0a0bad5dac08be4dbb08 100644
+--- a/src/Audio.types.ts
++++ b/src/Audio.types.ts
+@@ -632,6 +632,12 @@ export type AudioMode = {
+    * @platform ios
+    */
+   allowsRecording: boolean;
++  /**
++   * iOS only. Records from the phone microphone and keeps Bluetooth headphones on A2DP
++   * so other apps' audio keeps playing at full quality. Requires `allowsRecording`.
++   * @default false
++   */
++  preserveBluetoothPlayback?: boolean;
+   /**
+    * Whether the audio session stays active when the app moves to the background.
+    *
