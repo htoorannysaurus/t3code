@@ -56,7 +56,7 @@ describe("deriveThreadTurnSubagents", () => {
       runs: [run("run-0", "completed"), activeRun],
       subagents: [
         subagent({ id: "b", startedAt: at("2026-06-20T00:00:05.000Z") }),
-        subagent({ id: "old", runId: RunId.make("run-0") }),
+        subagent({ id: "old", runId: RunId.make("run-0"), status: "completed" }),
         subagent({ id: "a", startedAt: at("2026-06-20T00:00:02.000Z") }),
       ],
     });
@@ -83,6 +83,54 @@ describe("deriveThreadTurnSubagents", () => {
     expect(turn?.runId).toBe("run-2");
     expect(turn?.turnActive).toBe(false);
     expect(turn?.subagents.map((entry) => entry.id)).toEqual(["recent"]);
+  });
+
+  it("keeps an older run's still-running agent after a later parent turn starts", () => {
+    const turn = deriveThreadTurnSubagents({
+      runs: [run("run-0", "completed"), activeRun],
+      subagents: [
+        subagent({ id: "hpmor", runId: RunId.make("run-0"), status: "running" }),
+        subagent({ id: "settled", runId: RunId.make("run-0"), status: "completed" }),
+      ],
+    });
+
+    expect(turn?.runId).toBe("run-1");
+    expect(turn?.subagents.map((entry) => entry.id)).toEqual(["hpmor"]);
+    expect(resolveSubagentPillSegment(turn)?.label).toBe("1/1");
+  });
+
+  it("keeps an older running agent when a newer one is delegated from a later run", () => {
+    const turn = deriveThreadTurnSubagents({
+      runs: [run("run-0", "completed"), run("run-2", "completed")],
+      subagents: [
+        subagent({
+          id: "hpmor",
+          runId: RunId.make("run-0"),
+          status: "running",
+          startedAt: at("2026-06-20T00:00:00.000Z"),
+          updatedAt: at("2026-06-20T00:00:02.000Z"),
+        }),
+        subagent({
+          id: "newer",
+          runId: RunId.make("run-2"),
+          status: "running",
+          startedAt: at("2026-06-20T00:00:05.000Z"),
+          updatedAt: at("2026-06-20T00:00:09.000Z"),
+        }),
+        subagent({
+          id: "newer-done",
+          runId: RunId.make("run-2"),
+          status: "completed",
+          startedAt: at("2026-06-20T00:00:06.000Z"),
+          updatedAt: at("2026-06-20T00:00:08.000Z"),
+        }),
+      ],
+    });
+
+    expect(turn?.runId).toBe("run-2");
+    expect(turn?.subagents.map((entry) => entry.id)).toEqual(["hpmor", "newer", "newer-done"]);
+    expect(turn?.liveCount).toBe(2);
+    expect(resolveSubagentPillSegment(turn)?.label).toBe("2/3");
   });
 
   it("counts idle as neither working nor done", () => {

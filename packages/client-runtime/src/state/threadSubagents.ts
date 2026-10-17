@@ -37,8 +37,12 @@ export function deriveThreadTurnSubagents(
       : latest,
   );
   const runId = activeRun?.id ?? latestUpdated.runId;
+  // A child delegated by an earlier parent turn keeps running after later turns start, so
+  // every non-terminal agent stays on the roster alongside the selected turn's settled ones.
   const subagents = copySorted(
-    projection.subagents.filter((subagent) => subagent.runId === runId),
+    projection.subagents.filter(
+      (subagent) => subagent.runId === runId || !isTerminalSubagentStatus(subagent.status),
+    ),
     (left, right) => orderKey(left) - orderKey(right) || left.id.localeCompare(right.id),
   );
   if (subagents.length === 0) return null;
