@@ -17,7 +17,7 @@ export function ComposerSlashButton(props: {
       accessibilityState={{ disabled: props.disabled }}
       // Tucked into the "+" button's own padding so the two read as a pair;
       // hitSlop keeps the tap target at 44pt.
-      className="-ml-2 h-[44px] w-7 shrink-0 items-center justify-center active:opacity-70 disabled:opacity-50"
+      className="-ml-3 h-[44px] w-7 shrink-0 items-center justify-center active:opacity-70 disabled:opacity-50"
       hitSlop={{ left: 2, right: 10 }}
       disabled={props.disabled}
       onPress={props.onPress}
@@ -28,6 +28,8 @@ export function ComposerSlashButton(props: {
         weight="regular"
         tintColorClassName="accent-icon"
         type="monochrome"
+        // The symbol is a 45-degree line; a typed slash stands steeper.
+        style={{ transform: [{ rotate: "-22deg" }] }}
       />
     </Pressable>
   );
