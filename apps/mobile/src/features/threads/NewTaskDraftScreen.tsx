@@ -55,6 +55,8 @@ import {
 import { AndroidScreenHeader } from "../../components/ui/AndroidScreenHeader";
 import { ScreenContent } from "../../components/ui/ScreenContent";
 import { ComposerAttachmentButton } from "./ComposerAttachmentButton";
+import { ComposerSlashButton } from "./ComposerSlashButton";
+import { insertSlashCommand } from "./composerSlash";
 import { ComposerAttachmentStrip } from "../../components/ComposerAttachmentStrip";
 import { composerStripAttachments } from "../../lib/composerImages";
 import { EnvironmentMachineSymbol } from "../../components/EnvironmentMachineSymbol";
@@ -1716,6 +1718,18 @@ export function NewTaskDraftScreen(props: {
                     )}
                     onPickMedia={handlePickMedia}
                     onPickFiles={handlePickFiles}
+                  />
+                  <ComposerSlashButton
+                    disabled={isComposerInteractionLocked}
+                    onPress={() => {
+                      const insertion = insertSlashCommand(flow.prompt, composerMenu.selection);
+                      flow.setPrompt(insertion.value);
+                      composerMenu.onSelectionChange({
+                        start: insertion.cursor,
+                        end: insertion.cursor,
+                      });
+                      promptInputRef.current?.focus();
+                    }}
                   />
                   <View className="min-w-0 flex-1 flex-row items-center justify-end gap-2">
                     <View className="min-w-0 shrink">

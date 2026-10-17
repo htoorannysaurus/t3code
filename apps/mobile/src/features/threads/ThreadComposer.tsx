@@ -72,6 +72,8 @@ import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { ComposerAttachmentButton } from "./ComposerAttachmentButton";
+import { ComposerSlashButton } from "./ComposerSlashButton";
+import { insertSlashCommand } from "./composerSlash";
 import {
   ComposerAttachmentStrip,
   ComposerAttachmentThumbnail,
@@ -486,6 +488,12 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     onUsageLimits:
       usageLimitsOffered && props.draftAttachments.length === 0 ? openUsageLimits : undefined,
   });
+  const insertSlash = () => {
+    const insertion = insertSlashCommand(props.draftMessage, composerMenu.selection);
+    props.onChangeDraftMessage(insertion.value);
+    composerMenu.onSelectionChange({ start: insertion.cursor, end: insertion.cursor });
+    inputRef.current?.focus();
+  };
   const voiceInput = useVoiceInputController({
     ownerKey: composerDraftKey,
     label: props.selectedThread.title || "Untitled thread",
@@ -865,6 +873,9 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                 onPickFiles={props.onPickDraftFiles}
               />
             ) : null}
+            {!isExpanded ? (
+              <ComposerSlashButton disabled={voiceInput.freezesEditor} onPress={insertSlash} />
+            ) : null}
             {isExpanded && queuedEdit !== null && queuedEdit.existingAttachments.length > 0 ? (
               <Animated.View
                 className="px-[14px] pb-2.5"
@@ -1138,13 +1149,19 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                   />
                 ) : (
                   <View className="min-w-0 flex-1 flex-row items-center justify-between">
-                    <ComposerAttachmentButton
-                      supportsFiles={Boolean(
-                        props.serverConfig?.environment.capabilities.fileAttachments,
-                      )}
-                      onPickMedia={props.onPickDraftMedia}
-                      onPickFiles={props.onPickDraftFiles}
-                    />
+                    <View className="shrink-0 flex-row items-center">
+                      <ComposerAttachmentButton
+                        supportsFiles={Boolean(
+                          props.serverConfig?.environment.capabilities.fileAttachments,
+                        )}
+                        onPickMedia={props.onPickDraftMedia}
+                        onPickFiles={props.onPickDraftFiles}
+                      />
+                      <ComposerSlashButton
+                        disabled={voiceInput.freezesEditor}
+                        onPress={insertSlash}
+                      />
+                    </View>
                     <View className="min-w-0 shrink">
                       <ComposerInlineControl
                         accessibilityLabel="Model and reasoning settings"
