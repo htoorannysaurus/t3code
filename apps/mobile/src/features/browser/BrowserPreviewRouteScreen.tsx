@@ -11,9 +11,11 @@ import {
 } from "@t3tools/contracts";
 import { normalizePreviewUrl } from "@t3tools/shared/preview";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Platform, TextInput, View } from "react-native";
+import { AppState, Platform, Pressable, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { GlassSurface } from "../../components/ui/GlassSurface";
+import { SymbolView } from "../../components/ui/AppSymbol";
 import { ControlPill } from "../../components/ui/ControlPill";
 import { AppBar } from "../../components/ui/AppBar";
 
@@ -200,14 +202,26 @@ function BrowserPreviewScreen({
         </View>
       )}
       <View className="absolute right-4" style={{ bottom: insets.bottom + 16 }}>
-        <ControlPill
-          icon={{ ios: "xmark", android: "close" }}
-          label="Close"
-          variant="pill"
+        <Pressable
+          accessibilityRole="button"
           accessibilityLabel="Close browser and return to chat"
           onPress={onClose}
-          className="bg-sheet-solid border border-input-border shadow-lg"
-        />
+          className="size-11 items-center justify-center active:opacity-70"
+        >
+          <GlassSurface
+            chrome="none"
+            pointerEvents="none"
+            className="size-9 items-center justify-center"
+            style={{ borderRadius: 18 }}
+          >
+            <SymbolView
+              name={{ ios: "xmark", android: "close" }}
+              size={16}
+              weight="semibold"
+              tintColorClassName="accent-icon"
+            />
+          </GlassSurface>
+        </Pressable>
       </View>
     </View>
   );
