@@ -171,52 +171,43 @@ describe("findRewindTargetCheckpoint", () => {
   const scope = "scope:root";
   const checkpoint = (
     id: string,
-    ordinal: number,
-    runId: string | null,
-    parent: string | null = null,
+    ordinalWithinScope: number,
+    appRunOrdinal: number | null,
     status = "ready",
-  ) => ({
-    id,
-    scopeId: scope,
-    runId: runId as RunId | null,
-    parentCheckpointId: parent,
-    ordinalWithinScope: ordinal,
-    status,
-  });
+  ) => ({ id, scopeId: scope, appRunOrdinal, ordinalWithinScope, status });
 
-  it("finds the state before a turn after an earlier turn was rolled back", () => {
-    // Run 13 was rolled back: its slot holds a run-less rollback checkpoint.
+  it("targets the latest earlier run after an earlier turn was rolled back", () => {
+    // Run 13 was rolled back: its slot holds a run-less rollback checkpoint,
+    // which the server would read as run 0 and wipe the thread.
     const checkpoints = [
-      checkpoint("c11", 11, "run11"),
-      checkpoint("c12", 12, "run12"),
+      checkpoint("c0", 0, null),
+      checkpoint("c11", 11, 11),
+      checkpoint("c12", 12, 12),
       checkpoint("c13", 13, null),
-      checkpoint("c14", 14, "run14"),
+      checkpoint("c14", 14, 14),
     ];
-    expect(findRewindTargetCheckpoint(checkpoints, "run14" as RunId)).toEqual({
-      checkpointId: "c13",
+    expect(findRewindTargetCheckpoint(checkpoints, 14)).toEqual({
+      checkpointId: "c12",
       scopeId: scope,
     });
   });
 
-  it("prefers the run checkpoint's ready parent", () => {
-    const checkpoints = [
-      checkpoint("c1", 1, "run1"),
-      checkpoint("c2", 2, "run2"),
-      checkpoint("c3", 3, "run3", "c1"),
-    ];
-    expect(findRewindTargetCheckpoint(checkpoints, "run3" as RunId)?.checkpointId).toBe("c1");
+  it("targets the starting checkpoint for the first turn", () => {
+    const checkpoints = [checkpoint("c0", 0, null), checkpoint("c1", 1, 1)];
+    expect(findRewindTargetCheckpoint(checkpoints, 1)?.checkpointId).toBe("c0");
   });
 
   it("skips checkpoints that are not ready", () => {
     const checkpoints = [
-      checkpoint("c1", 1, "run1"),
-      checkpoint("c2", 2, "run2", null, "missing"),
-      checkpoint("c3", 3, "run3"),
+      checkpoint("c0", 0, null),
+      checkpoint("c1", 1, 1),
+      checkpoint("c2", 2, 2, "stale"),
+      checkpoint("c3", 3, 3),
     ];
-    expect(findRewindTargetCheckpoint(checkpoints, "run3" as RunId)?.checkpointId).toBe("c1");
+    expect(findRewindTargetCheckpoint(checkpoints, 3)?.checkpointId).toBe("c1");
   });
 
-  it("returns null when the run has no checkpoint", () => {
-    expect(findRewindTargetCheckpoint([checkpoint("c1", 1, "run1")], "run9" as RunId)).toBeNull();
+  it("returns null when nothing earlier is ready", () => {
+    expect(findRewindTargetCheckpoint([checkpoint("c0", 0, null, "stale")], 1)).toBeNull();
   });
 });

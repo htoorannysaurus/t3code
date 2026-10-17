@@ -363,19 +363,17 @@ export function useThreadRewind(input: {
                 .data,
             );
             const runId = projection?.messages.find((entry) => entry.id === message.id)?.runId;
+            const runOrdinal = projection?.runs.find((run) => run.id === runId)?.ordinal;
             const target =
-              projection && runId
-                ? findRewindTargetCheckpoint(projection.checkpoints, runId)
+              projection && runOrdinal !== undefined
+                ? findRewindTargetCheckpoint(projection.checkpoints, runOrdinal)
                 : null;
+            // Never fall back to the server's own lookup: a wrong target can
+            // roll back the whole thread.
+            if (target === null) throw new Error(REWIND_MISSING_MESSAGE);
             const result = await revertCheckpoint({
               environmentId,
-              input: {
-                commandId: requestId,
-                threadId,
-                turnCount,
-                restoreFiles,
-                ...(target === null ? {} : target),
-              },
+              input: { commandId: requestId, threadId, turnCount, restoreFiles, ...target },
             });
             if (result._tag === "Failure") throw squashAtomCommandFailure(result);
           },

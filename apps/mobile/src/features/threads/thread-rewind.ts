@@ -58,40 +58,30 @@ export function deriveRewindTurnCountByUserMessageId(input: {
 }
 
 /**
- * The checkpoint holding the state from just before `runId`'s turn. Counting
- * runs breaks once an earlier turn has been rolled back (its ordinal no longer
- * names a checkpoint), so walk the checkpoints themselves: the run's parent, or
- * the latest ready checkpoint before it in the same scope.
+ * The checkpoint holding the state from just before the turn at `runOrdinal`.
+ * The server rolls back every run after the target's `appRunOrdinal`, reading
+ * a missing ordinal as 0, so the target must be the ready checkpoint of the
+ * latest earlier run (or the thread's starting checkpoint). Counting
+ * `runOrdinal - 1` breaks once an earlier turn has been rolled back.
  */
 export function findRewindTargetCheckpoint(
   checkpoints: ReadonlyArray<{
     readonly id: string;
     readonly scopeId: string;
-    readonly runId: RunId | null;
-    readonly parentCheckpointId: string | null;
+    readonly appRunOrdinal: number | null;
     readonly ordinalWithinScope: number;
     readonly status: string;
   }>,
-  runId: RunId,
+  runOrdinal: number,
 ): { readonly checkpointId: string; readonly scopeId: string } | null {
-  const runCheckpoint = checkpoints.findLast((checkpoint) => checkpoint.runId === runId);
-  if (runCheckpoint === undefined) return null;
-  const parent = checkpoints.find(
-    (checkpoint) =>
-      checkpoint.id === runCheckpoint.parentCheckpointId && checkpoint.status === "ready",
-  );
-  let target = parent;
-  if (target === undefined) {
-    for (const checkpoint of checkpoints) {
-      if (
-        checkpoint.scopeId === runCheckpoint.scopeId &&
-        checkpoint.status === "ready" &&
-        checkpoint.ordinalWithinScope < runCheckpoint.ordinalWithinScope &&
-        (target === undefined || checkpoint.ordinalWithinScope > target.ordinalWithinScope)
-      ) {
-        target = checkpoint;
-      }
-    }
+  let target: (typeof checkpoints)[number] | undefined;
+  for (const checkpoint of checkpoints) {
+    if (checkpoint.status !== "ready") continue;
+    const ordinal =
+      checkpoint.appRunOrdinal ?? (checkpoint.ordinalWithinScope === 0 ? 0 : undefined);
+    if (ordinal === undefined || ordinal >= runOrdinal) continue;
+    const best = target === undefined ? -1 : (target.appRunOrdinal ?? 0);
+    if (ordinal > best) target = checkpoint;
   }
   return target === undefined ? null : { checkpointId: target.id, scopeId: target.scopeId };
 }
