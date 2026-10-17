@@ -779,7 +779,9 @@ const RootStackConfig = createWorkspaceStackNavigator({
       screen: InAppBrowserRouteScreen,
       linking: "browse",
       options: {
-        presentation: "fullScreenModal",
+        // Pushes in from the right; the stack swipe-back stays off so the
+        // page's own edge swipes still go back and forward.
+        animation: "slide_from_right",
         headerShown: false,
         gestureEnabled: false,
       },
