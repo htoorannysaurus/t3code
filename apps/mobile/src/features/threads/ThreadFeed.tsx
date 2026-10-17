@@ -1355,9 +1355,11 @@ function renderFeedEntry(
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Edit from here"
+                accessibilityHint="Long-press to also rewind files"
                 hitSlop={8}
                 className="size-7 items-center justify-center"
-                onPress={() => props.rewind?.onEditFromHere(message)}
+                onPress={() => props.rewind?.onEditFromHere(message, false)}
+                onLongPress={() => props.rewind?.onEditFromHere(message, true)}
               >
                 <SymbolView name="pencil" size={14} tintColor={iconSubtleColor} />
               </Pressable>

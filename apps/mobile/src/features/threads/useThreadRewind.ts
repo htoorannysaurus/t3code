@@ -267,7 +267,8 @@ function applyRestore(draftKey: string, restore: PreparedRestore): void {
 export interface ThreadRewindControls {
   /** Turn count to roll back to, for each user message that can be edited from. */
   readonly turnCountByMessageId: ReadonlyMap<MessageId, number>;
-  readonly onEditFromHere: (message: ThreadFeedMessage) => void;
+  /** With restoreFiles set, rewinds straight away; without it, asks first. */
+  readonly onEditFromHere: (message: ThreadFeedMessage, restoreFiles?: boolean) => void;
 }
 
 /**
@@ -414,7 +415,7 @@ export function useThreadRewind(input: {
   );
 
   const onEditFromHere = useCallback(
-    (message: ThreadFeedMessage) => {
+    (message: ThreadFeedMessage, restoreFiles?: boolean) => {
       const current = stateRef.current;
       if (!current.canOperateThread || busyRef.current) return;
       const turnCount = turnCountByMessageIdRef.current.get(message.id);
@@ -427,6 +428,10 @@ export function useThreadRewind(input: {
       });
       if (blocked !== null) {
         Dialog.alert("Can't edit from here yet", blocked);
+        return;
+      }
+      if (restoreFiles !== undefined) {
+        void runRewind(message, turnCount, restoreFiles);
         return;
       }
       Dialog.alert(
