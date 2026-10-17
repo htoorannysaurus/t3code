@@ -76,6 +76,7 @@ type ThreadGitHeaderActionItems = {
   readonly files: HeaderItem;
   readonly git: HeaderItem;
   readonly browser: HeaderItem;
+  readonly tasks: HeaderItem;
 };
 type QuickActionIcon =
   | "arrow.down.circle"
@@ -280,6 +281,20 @@ function useThreadGitHeaderActionItems(props: ThreadGitControlsProps): ThreadGit
 
   return useMemo(
     () => ({
+      tasks: {
+        accessibilityLabel: "Tasks and agents",
+        icon: { name: "person.2", type: "sfSymbol" },
+        identifier: "thread-right-tasks",
+        label: "Tasks",
+        onPress: () =>
+          navigation.navigate("ThreadAgents", {
+            environmentId: EnvironmentId.make(String(props.environmentId)),
+            threadId: ThreadId.make(String(props.threadId)),
+          }),
+        sharesBackground: true,
+        type: "button",
+        variant: "plain",
+      },
       browser: {
         accessibilityLabel: "Open browser",
         icon: { name: "globe", type: "sfSymbol" },
@@ -421,6 +436,8 @@ function useThreadGitHeaderActionItems(props: ThreadGitControlsProps): ThreadGit
     }),
     [
       navigation,
+      props.environmentId,
+      props.threadId,
       model.currentBranchLabel,
       model.isRepo,
       model.openFiles,
@@ -448,7 +465,7 @@ function useThreadGitHeaderActionItems(props: ThreadGitControlsProps): ThreadGit
 export function useThreadGitRightHeaderItems(props: ThreadGitControlsProps): HeaderItems {
   const actionItems = useThreadGitHeaderActionItems(props);
   return useMemo(
-    () => [actionItems.browser, actionItems.files, actionItems.terminal] as HeaderItems,
+    () => [actionItems.browser, actionItems.files, actionItems.tasks] as HeaderItems,
     [actionItems],
   );
 }
@@ -456,7 +473,7 @@ export function useThreadGitRightHeaderItems(props: ThreadGitControlsProps): Hea
 export function useThreadGitCenterHeaderItems(props: ThreadGitControlsProps): HeaderItems {
   const actionItems = useThreadGitHeaderActionItems(props);
   return useMemo(
-    () => [actionItems.files, actionItems.browser, actionItems.terminal] as HeaderItems,
+    () => [actionItems.files, actionItems.browser, actionItems.tasks] as HeaderItems,
     [actionItems],
   );
 }

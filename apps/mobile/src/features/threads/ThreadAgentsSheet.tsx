@@ -1,6 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { ThreadTurnSubagents } from "@t3tools/client-runtime/state/thread-subagents";
 import {
+  presentPendingBackgroundWork,
+  type PendingBackgroundWorkItem,
+} from "@t3tools/client-runtime/state/thread-execution";
+import {
   isOrchestrationV2WorkActive,
   type EnvironmentId,
   type OrchestrationV2Subagent,
@@ -22,6 +26,8 @@ import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { environmentThreadDetails } from "../../state/threads";
 import { NativeStackScreenOptions, nativeHeaderScrollEdgeEffects } from "../../native/StackHeader";
 import { SubagentRow } from "./SubagentRow";
+import { SymbolView, type AppSymbolViewProps } from "../../components/ui/AppSymbol";
+import { useThreadShell } from "../../state/entities";
 import { ScreenContent } from "../../components/ui/ScreenContent";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 
@@ -49,6 +55,10 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
   const theme = useUniwindTheme();
   const turn = useThreadTurnSubagents(target);
   const subagents = turn?.subagents ?? [];
+  const thread = useThreadShell(target);
+  const backgroundWork = presentPendingBackgroundWork(thread?.pendingBackgroundTasks ?? []);
+  // Subagents already have their own rows below.
+  const backgroundTasks = (backgroundWork?.items ?? []).filter((item) => item.kind !== "subagent");
   const hasLiveAgent = (turn?.liveCount ?? 0) > 0;
 
   const openChildThread = (childThreadId: ThreadId) => {
@@ -73,9 +83,20 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
       contentContainerClassName="px-5 pb-6"
       contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 8 }}
     >
+      {backgroundTasks.length > 0 ? (
+        <>
+          <SectionTitle title="Background tasks" />
+          {backgroundTasks.map((item) => (
+            <BackgroundTaskRow key={item.taskId} item={item} />
+          ))}
+          <SectionTitle title="Agents" />
+        </>
+      ) : null}
       {subagents.length === 0 ? (
         <Text className="pt-6 text-center text-sm text-foreground-muted">
-          No agents in this turn.
+          {backgroundTasks.length > 0
+            ? "No agents in this turn."
+            : "No tasks or agents in this turn."}
         </Text>
       ) : (
         subagents.map((subagent) => (
@@ -111,7 +132,7 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
               color={theme["--color-foreground"]}
               hideBackButton
               hideShadow={false}
-              title="Agents"
+              title="Tasks & agents"
               titleColor={theme["--color-foreground"]}
               titleFontSize={18}
               titleFontWeight="800"
@@ -126,8 +147,37 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
   return (
     <View collapsable={false} className="flex-1 bg-sheet">
       <NativeStackScreenOptions options={{ sheetCornerRadius: 28 }} />
-      <AndroidSheetHeader title="Agents" onBack={() => navigation.goBack()} />
+      <AndroidSheetHeader title="Tasks & agents" onBack={() => navigation.goBack()} />
       <ScreenContent insetHorizontal={layout.usesSplitView}>{content}</ScreenContent>
+    </View>
+  );
+}
+
+function SectionTitle(props: { readonly title: string }) {
+  return (
+    <Text className="pt-4 pb-1 text-xs font-t3-bold uppercase text-foreground-muted">
+      {props.title}
+    </Text>
+  );
+}
+
+function BackgroundTaskRow(props: { readonly item: PendingBackgroundWorkItem }) {
+  const { item } = props;
+  const icon: AppSymbolViewProps["name"] =
+    item.kind === "monitor"
+      ? "eye"
+      : item.kind === "command"
+        ? "terminal"
+        : { ios: "bolt", android: "bolt" };
+  return (
+    <View accessible className="flex-row items-center gap-3 border-b border-border py-3.5">
+      <SymbolView name={icon} size={16} tintColorClassName="accent-foreground-muted" />
+      <Text className="min-w-0 flex-1 text-sm text-foreground" numberOfLines={2}>
+        {item.label}
+      </Text>
+      <Text className="shrink-0 text-xs text-foreground-muted">
+        {item.kind === "background_task" ? "task" : item.kind}
+      </Text>
     </View>
   );
 }
