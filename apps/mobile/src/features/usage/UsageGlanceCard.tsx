@@ -92,7 +92,7 @@ export function UsageGlanceCard(props: {
                     ) : null}
                     {row.pace ? (
                       <Text
-                        className="text-xs font-t3-medium tabular-nums"
+                        className="text-xs font-t3-medium tabular-nums text-foreground"
                         style={{
                           color: row.tone === "ok" ? undefined : TONE_COLOR[row.tone],
                         }}
