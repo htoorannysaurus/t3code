@@ -873,9 +873,6 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                 onPickFiles={props.onPickDraftFiles}
               />
             ) : null}
-            {!isExpanded ? (
-              <ComposerSlashButton disabled={voiceInput.freezesEditor} onPress={insertSlash} />
-            ) : null}
             {isExpanded && queuedEdit !== null && queuedEdit.existingAttachments.length > 0 ? (
               <Animated.View
                 className="px-[14px] pb-2.5"
