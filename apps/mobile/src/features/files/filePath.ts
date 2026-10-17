@@ -96,6 +96,56 @@ export function resolveWorkspaceRelativeFilePath(
   return normalizeRelativePath(relativePath);
 }
 
+/** "~", "~/..." or "~\\...": a path on the server relative to its user's home directory. */
+export function isHomeRelativePath(value: string): boolean {
+  return value === "~" || value.startsWith("~/") || value.startsWith("~\\");
+}
+
+/** Replaces a leading "~" with the server's home directory; other paths pass through. */
+export function expandHomeRelativePath(value: string, homePath: string): string {
+  if (!isHomeRelativePath(value)) return value;
+  const rest = value.slice(1).replace(/^[\\/]+/, "");
+  if (rest.length === 0) return homePath.replace(/(?<=.)[\\/]+$/, "");
+  return joinPath(homePath, rest, isWindowsPathStyle(homePath) ? "\\" : "/");
+}
+
+/** A trailing separator (or a bare "~") marks a link target as a folder for certain. */
+export function isMarkedDirectoryPath(value: string): boolean {
+  return value === "~" || /[\\/]$/.test(value);
+}
+
+/** Folders usually have no extension; a path without one may be either and needs a stat. */
+export function hasFileExtension(value: string): boolean {
+  // A leading dot is a dotfile or dot-folder (".config"), not an extension.
+  return /[^.]\.[^./\\]+$/.test(basename(value));
+}
+
+export type FileLinkTarget =
+  | { readonly kind: "workspace"; readonly relativePath: string }
+  | { readonly kind: "absolute"; readonly path: string };
+
+/**
+ * Where a file link points: inside the workspace (opened workspace-relative) or
+ * elsewhere on the server. "~" paths need the server's home directory and
+ * resolve to null until it is known.
+ */
+export function resolveFileLinkTarget(input: {
+  readonly workspaceRoot: string | null | undefined;
+  readonly path: string;
+  readonly homePath: string | null;
+}): FileLinkTarget | null {
+  let path = input.path;
+  if (isHomeRelativePath(path)) {
+    if (!input.homePath) return null;
+    path = expandHomeRelativePath(path, input.homePath);
+  }
+  const relativePath = resolveWorkspaceRelativeFilePath(input.workspaceRoot, path);
+  if (relativePath) return { kind: "workspace", relativePath };
+  if (!isAbsolutePath(path)) return null;
+  const trimmed = path.replace(/[\\/]+$/, "");
+  return { kind: "absolute", path: trimmed.length > 0 ? trimmed : path };
+}
+
 export function isVideoPreviewFile(path: string): boolean {
   return isWorkspaceVideoPreviewPath(path);
 }

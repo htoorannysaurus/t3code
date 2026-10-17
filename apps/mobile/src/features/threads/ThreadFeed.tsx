@@ -220,10 +220,17 @@ import { environmentThreadShells, threadEnvironment } from "../../state/threads"
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useV2ItemSupport } from "../../state/v2-item-support";
 import {
+  basename,
   fileRoutePathSegments,
+  hasFileExtension,
   isAbsolutePath,
+  isHomeRelativePath,
+  isMarkedDirectoryPath,
+  resolveFileLinkTarget,
+  resolveWorkspaceFilePath,
   resolveWorkspaceRelativeFilePath,
 } from "../files/filePath";
+import { filesystemEnvironment } from "../../state/filesystem";
 import { waitForThreadShellReady } from "./threadForkNavigation";
 import { resolveUserMessageIntentBadge } from "./userMessageIntentBadge";
 import { fileChipMenu, resolveFileChipTarget, type FileChipAction } from "./fileChipMenu";
@@ -271,6 +278,9 @@ function isFreshTimestamp(input: string): boolean {
   const timestamp = Date.parse(input);
   return Number.isFinite(timestamp) && Date.now() - timestamp < FRESH_ENTRY_WINDOW_MS;
 }
+
+// Each server's home directory, learned once per environment so "~" links can be expanded.
+const serverHomePaths = new Map<string, string>();
 
 export interface ThreadFeedHistoryControls {
   readonly hasMoreHistory: boolean;
@@ -1818,6 +1828,63 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const iconSubtleColor = theme["--color-icon-subtle"];
   const screenColor = theme["--color-screen"];
   const userBubbleColor = theme["--color-user-bubble"];
+  const browseFilesystem = useAtomQueryRunner(filesystemEnvironment.browse, {
+    reportFailure: false,
+    reportDefect: false,
+  });
+  // "~" links and folder links need the server: the home directory to expand
+  // "~", and a directory listing to tell a folder from an extensionless file.
+  // Folders open in the Files tree, rooted there even outside the workspace.
+  const openFileLink = useCallback(
+    async (path: string, line: number | undefined) => {
+      const environmentId = props.environmentId;
+      let homePath: string | null = null;
+      if (isHomeRelativePath(path)) {
+        homePath = serverHomePaths.get(String(environmentId)) ?? null;
+        if (homePath === null) {
+          const home = await browseFilesystem({ environmentId, input: { partialPath: "~/" } });
+          if (home._tag !== "Success") return;
+          homePath = home.value.parentPath;
+          serverHomePaths.set(String(environmentId), homePath);
+        }
+      }
+      const target = resolveFileLinkTarget({ workspaceRoot: props.workspaceRoot, path, homePath });
+      if (target === null) return;
+      const absolutePath =
+        target.kind === "absolute"
+          ? target.path
+          : props.workspaceRoot
+            ? resolveWorkspaceFilePath(props.workspaceRoot, target.relativePath)
+            : null;
+      let directory = isMarkedDirectoryPath(path);
+      if (!directory && absolutePath !== null && !hasFileExtension(path)) {
+        const listing = await browseFilesystem({
+          environmentId,
+          input: { partialPath: `${absolutePath}/` },
+        });
+        directory = listing._tag === "Success";
+      }
+      void Haptics.selectionAsync();
+      if (directory && absolutePath !== null) {
+        navigation.navigate("ThreadFiles", {
+          environmentId: String(environmentId),
+          threadId: String(props.threadId),
+          cwd: absolutePath,
+          projectName: basename(absolutePath),
+        });
+        return;
+      }
+      navigation.navigate("ThreadFile", {
+        environmentId: String(environmentId),
+        threadId: String(props.threadId),
+        path: fileRoutePathSegments(
+          target.kind === "workspace" ? target.relativePath : target.path,
+        ),
+        ...(line ? { line: String(line) } : {}),
+      });
+    },
+    [browseFilesystem, navigation, props.environmentId, props.threadId, props.workspaceRoot],
+  );
   const onMarkdownLinkPress = useCallback(
     (href: string, imageEmbed = false) => {
       const linkedThreadId = parseThreadLinkHref(href);
@@ -1845,6 +1912,17 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       }
 
       const presentation = resolveMarkdownLinkPresentation(href);
+      const linkedPath =
+        presentation.kind === "file" ? presentation.path : href.trim() === "~" ? "~" : null;
+      if (
+        linkedPath !== null &&
+        (isHomeRelativePath(linkedPath) ||
+          isMarkedDirectoryPath(linkedPath) ||
+          !hasFileExtension(linkedPath))
+      ) {
+        void openFileLink(linkedPath, presentation.kind === "file" ? presentation.line : undefined);
+        return;
+      }
       if (presentation.kind === "file") {
         const relativePath = resolveWorkspaceRelativeFilePath(
           props.workspaceRoot,
@@ -1883,7 +1961,14 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
         void openPullRequest(presentation.href);
       }
     },
-    [props.environmentId, props.threadId, props.workspaceRoot, navigation, openPullRequest],
+    [
+      props.environmentId,
+      props.threadId,
+      props.workspaceRoot,
+      navigation,
+      openFileLink,
+      openPullRequest,
+    ],
   );
   const resolveImageSource = useMarkdownImageSource({
     environmentId: props.environmentId,

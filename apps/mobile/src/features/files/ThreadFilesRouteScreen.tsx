@@ -333,6 +333,9 @@ function FileContent(props: {
 type ThreadFilesRouteScreenProps = StaticScreenProps<{
   readonly environmentId: string;
   readonly threadId: string;
+  /** Roots the tree at another folder, e.g. one a chat link pointed at outside the workspace. */
+  readonly cwd?: string;
+  readonly projectName?: string;
 }>;
 
 type ThreadFileRouteScreenProps = StaticScreenProps<{
@@ -462,10 +465,12 @@ export function ThreadFilesTreeScreen(props: ThreadFilesRouteScreenProps) {
       if (environmentId === null || threadId === null) {
         return;
       }
+      const rootOverride = firstRouteParam(props.route.params.cwd);
       const params = {
         environmentId: String(environmentId),
         threadId: String(threadId),
         path: path.split("/").filter((segment) => segment.length > 0),
+        ...(rootOverride !== null && cwd !== null ? { cwd, projectName } : {}),
       };
       const navigationAction = resolveFileSelectionNavigationAction({
         hasPersistentFileInspector: fileInspector.supported,
@@ -476,7 +481,15 @@ export function ThreadFilesTreeScreen(props: ThreadFilesRouteScreenProps) {
       }
       navigation.navigate("ThreadFile", params);
     },
-    [environmentId, fileInspector.supported, navigation, threadId],
+    [
+      cwd,
+      environmentId,
+      fileInspector.supported,
+      navigation,
+      projectName,
+      props.route.params.cwd,
+      threadId,
+    ],
   );
   const renderInspector = useCallback(
     (headerInset: number) =>
