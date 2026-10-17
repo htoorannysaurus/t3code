@@ -1349,6 +1349,19 @@ function renderFeedEntry(
                 <SymbolView name="pencil" size={14} tintColor={iconSubtleColor} />
               </Pressable>
             ) : null}
+            {presentation.text.trim().length > 0 &&
+            props.rewind &&
+            props.rewind.turnCountByMessageId.has(message.id) ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Edit from here"
+                hitSlop={8}
+                className="size-7 items-center justify-center"
+                onPress={() => props.rewind?.onEditFromHere(message)}
+              >
+                <SymbolView name="pencil" size={14} tintColor={iconSubtleColor} />
+              </Pressable>
+            ) : null}
             {presentation.text.trim().length > 0 ? (
               <UserMessageCopyButton
                 text={presentation.text}
