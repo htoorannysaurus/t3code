@@ -816,7 +816,6 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
             isExpanded
               ? {
                   borderRadius: 26,
-                  minHeight: 140,
                   overflow: "hidden" as const,
                   paddingBottom: 6,
                   paddingTop: 14,
@@ -1001,7 +1000,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                 style={
                   isExpanded
                     ? {
-                        minHeight: 72,
+                        minHeight: 36,
                         maxHeight: 160,
                         paddingVertical: 4,
                       }
