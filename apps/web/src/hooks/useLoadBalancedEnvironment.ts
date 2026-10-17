@@ -2,9 +2,30 @@ import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import { chooseLoadBalancedEnvironment } from "@t3tools/client-runtime/load-balancing";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { Atom } from "effect/reactivity";
-import { useCallback, useContext, useMemo } from "react";
+import { useContext } from "react";
 
 import { serverEnvironment } from "../state/server";
+
+// Keyed by content: callers derive the list every render.
+const hostResourcesAtom = Atom.family((environmentIdsKey: string) =>
+  Atom.make((get) => ({
+    // Staleness is judged when a snapshot is read, which keeps render pure.
+    evaluatedAt: Date.now(),
+    resources: (environmentIdsKey === ""
+      ? []
+      : (environmentIdsKey.split("\n") as EnvironmentId[])
+    ).map((environmentId) => {
+      const result = get(serverEnvironment.hostResources({ environmentId, input: {} }));
+      return {
+        environmentId,
+        resources: result._tag === "Success" ? result.value : null,
+        receivedAt: result._tag === "Success" ? result.timestamp : 0,
+        pending: result._tag === "Initial" || result.waiting,
+        failed: result._tag === "Failure",
+      };
+    }),
+  })),
+);
 
 /** Only mounted for unresolved automatic drafts, so idle clients do not poll hosts. */
 export function useLoadBalancedEnvironment(
@@ -12,42 +33,19 @@ export function useLoadBalancedEnvironment(
   weights: Readonly<Record<string, number>>,
 ) {
   const registry = useContext(RegistryContext);
-  const refresh = useCallback(
-    (ids: readonly EnvironmentId[]) => {
-      for (const environmentId of ids) {
-        registry.refresh(serverEnvironment.hostResources({ environmentId, input: {} }));
-      }
-    },
-    [registry],
-  );
-  // Keyed by content: callers derive the list every render.
-  const environmentIdsKey = environmentIds.join("\n");
-  const resourcesAtom = useMemo(
-    () =>
-      Atom.make((get) =>
-        (environmentIdsKey === "" ? [] : (environmentIdsKey.split("\n") as EnvironmentId[])).map(
-          (environmentId) => {
-            const result = get(serverEnvironment.hostResources({ environmentId, input: {} }));
-            return {
-              environmentId,
-              resources: result._tag === "Success" ? result.value : null,
-              receivedAt: result._tag === "Success" ? result.timestamp : 0,
-              pending: result._tag === "Initial" || result.waiting,
-              failed: result._tag === "Failure",
-            };
-          },
-        ),
-      ),
-    [environmentIdsKey],
-  );
-  const resources = useAtomValue(resourcesAtom);
+  const refresh = (ids: readonly EnvironmentId[]) => {
+    for (const environmentId of ids) {
+      registry.refresh(serverEnvironment.hostResources({ environmentId, input: {} }));
+    }
+  };
+  const { evaluatedAt, resources } = useAtomValue(hostResourcesAtom(environmentIds.join("\n")));
   const pending = resources.some((resource) => resource.pending);
   const environmentId = chooseLoadBalancedEnvironment(
     resources.map((resource) => ({
       ...resource,
       weight: weights[resource.environmentId] ?? 50,
     })),
-    Date.now(),
+    evaluatedAt,
   ) as EnvironmentId | null;
   return {
     refresh,
