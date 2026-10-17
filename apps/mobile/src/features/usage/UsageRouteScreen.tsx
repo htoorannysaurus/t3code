@@ -52,6 +52,7 @@ import { UsageDailyChart } from "./UsageDailyChart";
 import { toggleUsageEnvironment } from "./usageEnvironmentSelection";
 import { useRefreshLimits } from "./UsageLimitsSection";
 import { UsageLimitsSection } from "./UsageLimitsPooled";
+import { UsageGlanceCard } from "./UsageGlanceCard";
 import { WeekTrendSection } from "./WeekTrendSection";
 import { Menu } from "../../components/ui/Menu";
 import { SymbolView } from "../../components/ui/AppSymbol";
@@ -60,8 +61,8 @@ import { PROVIDER_LABEL, useProviderColors, useUsageMixColors } from "./usagePro
 
 type UsageTab = "usage" | "limits";
 const TAB_OPTIONS = [
-  { value: "usage", label: "Usage" },
   { value: "limits", label: "Limits" },
+  { value: "usage", label: "Tokens & cost" },
 ] as const satisfies readonly { value: UsageTab; label: string }[];
 
 const WINDOW_OPTIONS = [
@@ -285,7 +286,11 @@ export function UsageRouteScreen() {
         >
           {showingLimits ? (
             <>
+              <UsageGlanceCard now={limits.now} selectedEnvironmentIds={selectedEnvironmentIds} />
               <WeekTrendSection now={limits.now} selectedEnvironmentIds={selectedEnvironmentIds} />
+              <Text className="-mb-3 px-1 text-xs font-t3-medium uppercase text-foreground-muted">
+                Accounts and refills
+              </Text>
               <UsageLimitsSection
                 now={limits.now}
                 failedLabels={limits.failedLabels}
@@ -547,17 +552,23 @@ function ChartCard(props: {
 
   return (
     <View className="gap-4 rounded-[24px] border-continuous bg-grouped-card p-4">
-      <View className="gap-0.5">
+      <View className="gap-1">
+        <View className="flex-row gap-4">
+          <View className="min-w-0 flex-1 gap-0.5">
+            <Text className="text-sm text-foreground-muted">Tokens</Text>
+            <Text className="text-3xl font-t3-bold tabular-nums text-foreground">
+              {formatTokens(merged.totalTokens)}
+            </Text>
+          </View>
+          <View className="min-w-0 flex-1 gap-0.5">
+            <Text className="text-sm text-foreground-muted">API-equivalent cost</Text>
+            <Text className="text-3xl font-t3-bold tabular-nums text-foreground">
+              {formatUsd(merged.costUsd)}
+            </Text>
+          </View>
+        </View>
         <Text className="text-sm text-foreground-muted">
-          {metric === "cost" ? "Raw token cost" : "Processed tokens"}
-        </Text>
-        <Text className="text-4xl font-t3-bold tabular-nums text-foreground">
-          {metric === "cost" ? `${formatUsd(merged.costUsd)}*` : formatTokens(merged.totalTokens)}
-        </Text>
-        <Text className="text-sm text-foreground-muted">
-          {metric === "cost"
-            ? "* if billed at full API rate"
-            : `Across ${formatCount(merged.sessions)} sessions`}
+          {`${formatCount(merged.sessions)} sessions · chart shows ${metric === "cost" ? "cost" : "tokens"}`}
         </Text>
       </View>
 
