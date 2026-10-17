@@ -199,6 +199,16 @@ function BrowserPreviewScreen({
           ) : null}
         </View>
       )}
+      <View className="absolute right-4" style={{ bottom: insets.bottom + 16 }}>
+        <ControlPill
+          icon={{ ios: "xmark", android: "close" }}
+          label="Close"
+          variant="pill"
+          accessibilityLabel="Close browser and return to chat"
+          onPress={onClose}
+          className="bg-sheet-solid border border-input-border shadow-lg"
+        />
+      </View>
     </View>
   );
 }
