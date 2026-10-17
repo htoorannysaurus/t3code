@@ -44,6 +44,7 @@ import {
 import { useThreadProjection } from "../../state/use-thread-detail";
 import {
   deriveRewindTurnCountByUserMessageId,
+  findRewindTargetCheckpoint,
   inspectRewindProgress,
   providerSupportsConversationRollback,
   recallableRewindPrompt,
@@ -357,9 +358,24 @@ export function useThreadRewind(input: {
           turnCount,
           requestId,
           revert: async () => {
+            const projection = Option.getOrNull(
+              appAtomRegistry.get(environmentThreadDetails.stateAtom({ environmentId, threadId }))
+                .data,
+            );
+            const runId = projection?.messages.find((entry) => entry.id === message.id)?.runId;
+            const target =
+              projection && runId
+                ? findRewindTargetCheckpoint(projection.checkpoints, runId)
+                : null;
             const result = await revertCheckpoint({
               environmentId,
-              input: { commandId: requestId, threadId, turnCount, restoreFiles },
+              input: {
+                commandId: requestId,
+                threadId,
+                turnCount,
+                restoreFiles,
+                ...(target === null ? {} : target),
+              },
             });
             if (result._tag === "Failure") throw squashAtomCommandFailure(result);
           },

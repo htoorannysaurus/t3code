@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { CommandId, MessageId, RunId } from "@t3tools/contracts";
 
 import {
+  findRewindTargetCheckpoint,
   REWIND_BUSY_MESSAGE,
   REWIND_DISCONNECTED_MESSAGE,
   REWIND_QUEUED_EDIT_MESSAGE,
@@ -163,5 +164,59 @@ describe("sameRewindTurnCounts", () => {
     expect(sameRewindTurnCounts(new Map([[u1, 0]]), new Map([[u1, 1]]))).toBe(false);
     expect(sameRewindTurnCounts(new Map([[u1, 0]]), new Map([[u2, 0]]))).toBe(false);
     expect(sameRewindTurnCounts(new Map([[u1, 0]]), new Map())).toBe(false);
+  });
+});
+
+describe("findRewindTargetCheckpoint", () => {
+  const scope = "scope:root";
+  const checkpoint = (
+    id: string,
+    ordinal: number,
+    runId: string | null,
+    parent: string | null = null,
+    status = "ready",
+  ) => ({
+    id,
+    scopeId: scope,
+    runId: runId as RunId | null,
+    parentCheckpointId: parent,
+    ordinalWithinScope: ordinal,
+    status,
+  });
+
+  it("finds the state before a turn after an earlier turn was rolled back", () => {
+    // Run 13 was rolled back: its slot holds a run-less rollback checkpoint.
+    const checkpoints = [
+      checkpoint("c11", 11, "run11"),
+      checkpoint("c12", 12, "run12"),
+      checkpoint("c13", 13, null),
+      checkpoint("c14", 14, "run14"),
+    ];
+    expect(findRewindTargetCheckpoint(checkpoints, "run14" as RunId)).toEqual({
+      checkpointId: "c13",
+      scopeId: scope,
+    });
+  });
+
+  it("prefers the run checkpoint's ready parent", () => {
+    const checkpoints = [
+      checkpoint("c1", 1, "run1"),
+      checkpoint("c2", 2, "run2"),
+      checkpoint("c3", 3, "run3", "c1"),
+    ];
+    expect(findRewindTargetCheckpoint(checkpoints, "run3" as RunId)?.checkpointId).toBe("c1");
+  });
+
+  it("skips checkpoints that are not ready", () => {
+    const checkpoints = [
+      checkpoint("c1", 1, "run1"),
+      checkpoint("c2", 2, "run2", null, "missing"),
+      checkpoint("c3", 3, "run3"),
+    ];
+    expect(findRewindTargetCheckpoint(checkpoints, "run3" as RunId)?.checkpointId).toBe("c1");
+  });
+
+  it("returns null when the run has no checkpoint", () => {
+    expect(findRewindTargetCheckpoint([checkpoint("c1", 1, "run1")], "run9" as RunId)).toBeNull();
   });
 });
