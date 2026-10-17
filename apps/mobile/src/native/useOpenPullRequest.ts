@@ -43,7 +43,11 @@ export function useOpenPullRequest(options?: {
           ? { environmentId: String(environmentId), projectId: String(projectId) }
           : null,
       );
-      if (!params) return tryOpenExternalUrl(url, "pull-request");
+      if (!params) {
+        if (!/^https?:\/\//i.test(url)) return tryOpenExternalUrl(url, "pull-request");
+        navigation.navigate("InAppBrowser", { url });
+        return true;
+      }
       if (Platform.OS === "android")
         navigation.dispatch((state) =>
           CommonActions.reset(

@@ -75,6 +75,7 @@ type ThreadGitHeaderActionItems = {
   readonly terminal: HeaderItem;
   readonly files: HeaderItem;
   readonly git: HeaderItem;
+  readonly browser: HeaderItem;
 };
 type QuickActionIcon =
   | "arrow.down.circle"
@@ -275,9 +276,20 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
 
 function useThreadGitHeaderActionItems(props: ThreadGitControlsProps): ThreadGitHeaderActionItems {
   const model = useThreadGitControlModel(props);
+  const navigation = useNavigation();
 
   return useMemo(
     () => ({
+      browser: {
+        accessibilityLabel: "Open browser",
+        icon: { name: "globe", type: "sfSymbol" },
+        identifier: "thread-right-browser",
+        label: "Browser",
+        onPress: () => navigation.navigate("InAppBrowser", {}),
+        sharesBackground: true,
+        type: "button",
+        variant: "plain",
+      },
       terminal: {
         accessibilityLabel: "Open terminal",
         disabled: !props.canOpenTerminal,
@@ -408,6 +420,7 @@ function useThreadGitHeaderActionItems(props: ThreadGitControlsProps): ThreadGit
       },
     }),
     [
+      navigation,
       model.currentBranchLabel,
       model.isRepo,
       model.openFiles,
@@ -435,7 +448,13 @@ function useThreadGitHeaderActionItems(props: ThreadGitControlsProps): ThreadGit
 export function useThreadGitRightHeaderItems(props: ThreadGitControlsProps): HeaderItems {
   const actionItems = useThreadGitHeaderActionItems(props);
   return useMemo(
-    () => [actionItems.git, actionItems.files, actionItems.terminal] as HeaderItems,
+    () =>
+      [
+        actionItems.git,
+        actionItems.files,
+        actionItems.terminal,
+        actionItems.browser,
+      ] as HeaderItems,
     [actionItems],
   );
 }
@@ -443,7 +462,13 @@ export function useThreadGitRightHeaderItems(props: ThreadGitControlsProps): Hea
 export function useThreadGitCenterHeaderItems(props: ThreadGitControlsProps): HeaderItems {
   const actionItems = useThreadGitHeaderActionItems(props);
   return useMemo(
-    () => [actionItems.files, actionItems.git, actionItems.terminal] as HeaderItems,
+    () =>
+      [
+        actionItems.files,
+        actionItems.git,
+        actionItems.terminal,
+        actionItems.browser,
+      ] as HeaderItems,
     [actionItems],
   );
 }
