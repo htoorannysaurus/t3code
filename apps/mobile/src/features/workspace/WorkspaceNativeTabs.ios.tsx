@@ -15,6 +15,7 @@ import { useSystemWorkspaceTabBar } from "./useSystemWorkspaceTabBar";
 
 const PULL_REQUEST_ICON = require("../../../assets/icons/pull-request.png");
 const COMPOSE_TAB = "compose";
+const USAGE_TAB = "usage";
 
 /** Retain each native controller tree; removing its root can leave RNS's stack empty. */
 function RetainedWorkspaceTab(props: {
@@ -49,6 +50,7 @@ export function WorkspaceNativeTabs(props: {
   readonly hidden: boolean;
   readonly onSelect: () => void;
   readonly onNewTask: () => void;
+  readonly onOpenUsage: () => void;
 }) {
   const workspace = useWorkspaceTabs()!;
   const metrics = useNativeLayoutMetrics();
@@ -74,6 +76,10 @@ export function WorkspaceNativeTabs(props: {
           nativeEvent,
         }: NativeSyntheticEvent<TabSelectionPreventedEvent>) => {
           if (nativeEvent.preventedScreenKey === COMPOSE_TAB) props.onNewTask();
+          if (nativeEvent.preventedScreenKey === USAGE_TAB) {
+            Keyboard.dismiss();
+            props.onOpenUsage();
+          }
         }}
         onTabSelectionRejected={({
           nativeEvent,
@@ -90,27 +96,40 @@ export function WorkspaceNativeTabs(props: {
           workspace.dispatch({ type: "select", tab });
         }}
       >
-        {(["threads", "pullRequests"] as const).map((tab: WorkspaceTab) => (
-          <Tabs.Screen
-            key={tab}
-            screenKey={tab}
-            title={tab === "threads" ? "Threads" : "Pulls"}
-            tabBarItemAccessibilityLabel={tab === "threads" ? "Threads" : "Pull requests"}
-            ios={{
-              icon:
-                tab === "threads"
-                  ? { type: "sfSymbol", name: "text.bubble" }
-                  : { type: "templateSource", templateSource: PULL_REQUEST_ICON },
-              selectedIcon:
-                tab === "threads" ? { type: "sfSymbol", name: "text.bubble.fill" } : undefined,
-              overrideScrollViewContentInsetAdjustmentBehavior: false,
-            }}
-          >
-            <RetainedWorkspaceTab tab={tab} active={selectedTab === tab}>
-              {props.children}
-            </RetainedWorkspaceTab>
-          </Tabs.Screen>
-        ))}
+        {(["threads", USAGE_TAB, "pullRequests"] as const).map((tab) =>
+          tab === USAGE_TAB ? (
+            // A button, not a tab: opens the usage screen over the current tab.
+            <Tabs.Screen
+              key={USAGE_TAB}
+              screenKey={USAGE_TAB}
+              title="Usage"
+              preventNativeSelection
+              ios={{ icon: { type: "sfSymbol", name: "chart.bar.xaxis" } }}
+            >
+              <View />
+            </Tabs.Screen>
+          ) : (
+            <Tabs.Screen
+              key={tab}
+              screenKey={tab}
+              title={tab === "threads" ? "Threads" : "Pulls"}
+              tabBarItemAccessibilityLabel={tab === "threads" ? "Threads" : "Pull requests"}
+              ios={{
+                icon:
+                  tab === "threads"
+                    ? { type: "sfSymbol", name: "text.bubble" }
+                    : { type: "templateSource", templateSource: PULL_REQUEST_ICON },
+                selectedIcon:
+                  tab === "threads" ? { type: "sfSymbol", name: "text.bubble.fill" } : undefined,
+                overrideScrollViewContentInsetAdjustmentBehavior: false,
+              }}
+            >
+              <RetainedWorkspaceTab tab={tab} active={selectedTab === tab}>
+                {props.children}
+              </RetainedWorkspaceTab>
+            </Tabs.Screen>
+          ),
+        )}
         {phoneBar ? (
           <Tabs.Screen
             key={COMPOSE_TAB}

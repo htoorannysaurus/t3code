@@ -292,6 +292,12 @@ function WorkspaceStackView(props: ViewProps & { readonly nativeColumns: boolean
     render: () => (
       <WorkspaceNativeTabs
         onNewTask={() => props.navigation.navigate("NewTaskSheet", { screen: "NewTask" })}
+        onOpenUsage={() =>
+          props.navigation.navigate("SettingsSheet", {
+            screen: "SettingsContent",
+            params: { screen: "SettingsUsage" },
+          })
+        }
         hidden={
           projection.detail.length > 0 &&
           !primaryVisible &&
