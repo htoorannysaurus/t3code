@@ -131,7 +131,7 @@ export function WeekTrendSection(props: {
   readonly selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null;
 }) {
   const { now, selectedEnvironmentIds } = props;
-  const presentations = useAtomValue(environmentPresentations.presentationsAtom);
+  const presentations = useAtomValue(environmentPresentations.presentationsWithProvidersAtom);
   const window = useMemo(() => makeWindow(9), []);
   const { merged } = useUsage(window, selectedEnvironmentIds);
   const colors = useProviderColors();

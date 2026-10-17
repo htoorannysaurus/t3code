@@ -32,7 +32,7 @@ export function UsageGlanceCard(props: {
   readonly now: number;
   readonly selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null;
 }) {
-  const presentations = useAtomValue(environmentPresentations.presentationsAtom);
+  const presentations = useAtomValue(environmentPresentations.presentationsWithProvidersAtom);
   const selected =
     props.selectedEnvironmentIds === null
       ? presentations
