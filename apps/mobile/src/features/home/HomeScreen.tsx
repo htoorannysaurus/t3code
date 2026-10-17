@@ -1011,6 +1011,9 @@ export function HomeScreen(props: HomeScreenProps) {
                 ) : null
               }
               ListEmptyComponent={v2ListEmpty}
+              // Fork: a short list sits on the bottom bar, within thumb reach,
+              // instead of hanging from the header with empty space below it.
+              alignItemsAtEnd={threadListV2Items.length > 0}
               style={{ flex: 1 }}
               automaticallyAdjustsScrollIndicatorInsets={Platform.OS === "ios"}
               contentInsetAdjustmentBehavior="never"
