@@ -300,7 +300,7 @@ function useThreadGitHeaderActionItems(props: ThreadGitControlsProps): ThreadGit
         icon: { name: "globe", type: "sfSymbol" },
         identifier: "thread-right-browser",
         label: "Browser",
-        onPress: () => navigation.navigate("InAppBrowser", {}),
+        onPress: () => navigation.navigate("InAppBrowser", { threadId: String(props.threadId) }),
         sharesBackground: true,
         type: "button",
         variant: "plain",

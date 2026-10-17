@@ -45,7 +45,7 @@ export function useOpenPullRequest(options?: {
       );
       if (!params) {
         if (!/^https?:\/\//i.test(url)) return tryOpenExternalUrl(url, "pull-request");
-        navigation.navigate("InAppBrowser", { url });
+        navigation.navigate("InAppBrowser", threadId ? { url, threadId } : { url });
         return true;
       }
       if (Platform.OS === "android")
@@ -58,6 +58,6 @@ export function useOpenPullRequest(options?: {
       else navigation.navigate("PullRequest", params);
       return true;
     },
-    [environmentId, projectId, navigation, replace],
+    [environmentId, projectId, threadId, navigation, replace],
   );
 }

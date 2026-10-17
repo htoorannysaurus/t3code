@@ -6,7 +6,9 @@ import { WebView, type WebViewNavigation } from "react-native-webview";
 
 import { AppTextInput } from "../../components/ui/AppText";
 import { SymbolView, type AppSymbolViewProps } from "../../components/ui/AppSymbol";
+import { Menu } from "../../components/ui/Menu";
 import { LoadingStrip } from "../../components/ui/LoadingStrip";
+import { readBrowserMemory, rememberBrowserPage } from "./browserMemory";
 
 const HOME_URL = "https://www.google.com";
 
@@ -27,7 +29,10 @@ function displayAddress(url: string): string {
   return url.replace(/^https?:\/\//i, "").replace(/\/$/, "");
 }
 
-type InAppBrowserRouteScreenProps = StaticScreenProps<{ readonly url?: string }>;
+type InAppBrowserRouteScreenProps = StaticScreenProps<{
+  readonly url?: string;
+  readonly threadId?: string;
+}>;
 
 function ToolbarButton(props: {
   readonly icon: AppSymbolViewProps["name"];
@@ -59,7 +64,10 @@ export function InAppBrowserRouteScreen({ route }: InAppBrowserRouteScreenProps)
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const webViewRef = useRef<WebView<object>>(null);
-  const initialUrl = resolveAddressInput(route.params?.url ?? "") ?? HOME_URL;
+  const threadId = route.params?.threadId;
+  // Opening without a link picks up where this chat's browser left off.
+  const [memory] = useState(() => readBrowserMemory(threadId));
+  const initialUrl = resolveAddressInput(route.params?.url ?? "") ?? memory.last?.url ?? HOME_URL;
   const [sourceUrl, setSourceUrl] = useState(initialUrl);
   const [currentUrl, setCurrentUrl] = useState(initialUrl);
   const [address, setAddress] = useState(displayAddress(initialUrl));
@@ -75,8 +83,14 @@ export function InAppBrowserRouteScreen({ route }: InAppBrowserRouteScreenProps)
       setCanGoForward(state.canGoForward);
       setCurrentUrl(state.url);
       if (!editingAddress) setAddress(displayAddress(state.url));
+      if (!state.loading) {
+        rememberBrowserPage(threadId, {
+          url: state.url,
+          title: state.title || displayAddress(state.url),
+        });
+      }
     },
-    [editingAddress],
+    [editingAddress, threadId],
   );
 
   const submitAddress = useCallback(() => {
@@ -157,6 +171,27 @@ export function InAppBrowserRouteScreen({ route }: InAppBrowserRouteScreenProps)
           disabled={!canGoForward}
           onPress={() => webViewRef.current?.goForward()}
         />
+        {threadId && readBrowserMemory(threadId).recent.length > 0 ? (
+          <Menu
+            title="Recent in this chat"
+            actions={readBrowserMemory(threadId).recent.map((page) => ({
+              id: page.url,
+              title: page.title,
+              subtitle: displayAddress(page.url),
+            }))}
+            onPressAction={({ nativeEvent }) => {
+              setSourceUrl(nativeEvent.event);
+              setCurrentUrl(nativeEvent.event);
+              setAddress(displayAddress(nativeEvent.event));
+            }}
+          >
+            <ToolbarButton
+              icon={{ ios: "clock.arrow.circlepath", android: "public" }}
+              label="Recent pages in this chat"
+              onPress={() => undefined}
+            />
+          </Menu>
+        ) : null}
         <ToolbarButton
           icon={{ ios: "square.and.arrow.up", android: "public" }}
           label="Share"
