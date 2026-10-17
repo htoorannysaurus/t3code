@@ -154,7 +154,8 @@ afterEach(() => {
 });
 
 describe("ThreadHeader", () => {
-  it("re-applies native header items when Git status changes", () => {
+  // Fork: the Git header menu was replaced by the browser button.
+  it.skip("re-applies native header items when Git status changes", () => {
     render(<Header gitStatus={status([])} />);
     expect(renderedGitStatusDescription()).toBe("Clean");
 
@@ -175,7 +176,8 @@ describe("ThreadHeader", () => {
     expect(harness.setOptionsCalls).toBe(applied);
   });
 
-  it("re-applies menu actions when the default ref changes behind the same label", async () => {
+  // Fork: the Git header menu was replaced by the browser button.
+  it.skip("re-applies menu actions when the default ref changes behind the same label", async () => {
     const pushable = (isDefaultRef: boolean) =>
       status([], {
         isDefaultRef,
