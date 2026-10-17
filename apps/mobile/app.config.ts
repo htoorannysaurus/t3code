@@ -107,7 +107,20 @@ function resolveAppVariant(value: string | undefined): AppVariant {
   }
 }
 
-const variant = VARIANT_CONFIG[APP_VARIANT];
+const baseVariant = VARIANT_CONFIG[APP_VARIANT];
+// Self-built copies can carry their own name, icon set and URL scheme so they sit
+// beside the store app without sharing its home-screen identity or deep links.
+const customAppName = repoEnv.T3CODE_APP_NAME?.trim();
+const customAppScheme = repoEnv.T3CODE_APP_SCHEME?.trim();
+const customAppIcons = repoEnv.T3CODE_APP_ICON?.trim();
+const variant = {
+  ...baseVariant,
+  appName: customAppName || baseVariant.appName,
+  scheme: customAppScheme || baseVariant.scheme,
+  assets: customAppIcons
+    ? VARIANT_CONFIG[resolveAppVariant(customAppIcons)].assets
+    : baseVariant.assets,
+};
 // Self-built copies sign under their own team and identifier, side by side with the store app.
 const iosTeamId = repoEnv.T3CODE_IOS_TEAM_ID?.trim() || "ARK85ZXQ4Z";
 const customIosBundleIdentifier = repoEnv.T3CODE_IOS_BUNDLE_ID?.trim();
