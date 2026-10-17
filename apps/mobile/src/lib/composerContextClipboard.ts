@@ -112,8 +112,28 @@ export async function importComposerContextClipboard(
   }
 }
 
+/** The fields of an attachment context record that importing reads. */
+interface ImportableAttachment {
+  readonly attachmentId: string;
+  readonly name: string;
+  readonly mimeType: string;
+  readonly kind: string;
+}
+
+/**
+ * Copies a sent message's server attachment into a new local draft
+ * attachment, preferring a local copy when this device still has one.
+ */
+export function importServerAttachmentToDraft(
+  attachment: ImportableAttachment,
+  environmentId: EnvironmentId,
+  signal: AbortSignal,
+): Promise<DraftComposerAttachment> {
+  return importAttachment(attachment, environmentId, signal);
+}
+
 async function importAttachment(
-  record: Extract<ComposerContextRecord, { attachmentId: string }>,
+  record: ImportableAttachment,
   environmentId: EnvironmentId,
   signal: AbortSignal,
 ): Promise<DraftComposerAttachment> {
@@ -173,7 +193,7 @@ async function importAttachment(
 }
 
 async function persistImportedAttachment(
-  record: Extract<ComposerContextRecord, { attachmentId: string }>,
+  record: ImportableAttachment,
   uri: string,
   signal: AbortSignal,
 ): Promise<DraftComposerAttachment> {

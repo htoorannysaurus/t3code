@@ -227,6 +227,7 @@ import {
 import { waitForThreadShellReady } from "./threadForkNavigation";
 import { resolveUserMessageIntentBadge } from "./userMessageIntentBadge";
 import { fileChipMenu, resolveFileChipTarget, type FileChipAction } from "./fileChipMenu";
+import type { ThreadRewindControls } from "./useThreadRewind";
 import { useFileChipShare } from "./useFileChipShare";
 import {
   MarkdownImageAvailableWidthContext,
@@ -311,6 +312,8 @@ export interface ThreadFeedProps {
   readonly onEndFollowEnabledChange?: (enabled: boolean) => void;
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill>;
   readonly onUseArtifactTemplate?: (template: CodexArtifactTemplate) => void;
+  /** "Edit from here" on sent user messages; null when the thread cannot be rewound. */
+  readonly rewind?: ThreadRewindControls | null;
 }
 
 async function waitForThreadShell(
@@ -323,13 +326,21 @@ async function waitForThreadShell(
   });
 }
 
-const USER_MESSAGE_COPY_MENU_ACTIONS = [
-  { id: "copy-prompt-link", title: "Copy prompt link", image: "link" },
-];
+const COPY_PROMPT_LINK_MENU_ACTION = {
+  id: "copy-prompt-link",
+  title: "Copy prompt link",
+  image: "link",
+};
+const EDIT_FROM_HERE_MENU_ACTION = {
+  id: "edit-from-here",
+  title: "Edit from here",
+  image: "arrow.uturn.backward",
+};
 
 function UserMessageCopyButton(props: {
   readonly text: string;
   readonly onCopy: (() => Promise<void>) | undefined;
+  readonly onEditFromHere: (() => void) | null;
   readonly tintColor: ColorValue;
 }) {
   const button = (
@@ -343,12 +354,18 @@ function UserMessageCopyButton(props: {
     />
   );
   const linkText = replaceComposerContextReferences(props.text, (reference) => reference.label);
-  if (linkText.length > PROMPT_LINK_MAX_PROMPT_LENGTH) return button;
+  const canCopyLink = linkText.length <= PROMPT_LINK_MAX_PROMPT_LENGTH;
+  const actions = [
+    ...(canCopyLink ? [COPY_PROMPT_LINK_MENU_ACTION] : []),
+    ...(props.onEditFromHere ? [EDIT_FROM_HERE_MENU_ACTION] : []),
+  ];
+  if (actions.length === 0) return button;
   return (
     <Menu
-      actions={USER_MESSAGE_COPY_MENU_ACTIONS}
+      actions={actions}
       onPressAction={({ nativeEvent }) => {
-        if (nativeEvent.event === "copy-prompt-link") void copyPromptLink(linkText);
+        if (nativeEvent.event === COPY_PROMPT_LINK_MENU_ACTION.id) void copyPromptLink(linkText);
+        if (nativeEvent.event === EDIT_FROM_HERE_MENU_ACTION.id) props.onEditFromHere?.();
       }}
       shouldOpenOnLongPress
     >
@@ -973,6 +990,7 @@ function renderFeedEntry(
     | "skills"
     | "dispatchingMessageId"
     | "onEditPendingMessage"
+    | "rewind"
     | "threadId"
     | "workspaceRoot"
   > & {
@@ -1334,6 +1352,11 @@ function renderFeedEntry(
             {presentation.text.trim().length > 0 ? (
               <UserMessageCopyButton
                 text={presentation.text}
+                onEditFromHere={
+                  props.rewind && props.rewind.turnCountByMessageId.has(message.id)
+                    ? () => props.rewind?.onEditFromHere(message)
+                    : null
+                }
                 onCopy={
                   message.context
                     ? () =>
@@ -1999,6 +2022,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       worktreeSetup: props.worktreeSetup,
       setupWorkingStartedAt: props.setupWorkingStartedAt,
       dispatchingMessageId: props.dispatchingMessageId,
+      rewind: props.rewind,
       unsettledTurnId,
       copiedRowId,
       expandedWorkGroups,
@@ -2015,6 +2039,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       props.worktreeSetup,
       props.setupWorkingStartedAt,
       props.dispatchingMessageId,
+      props.rewind,
       unsettledTurnId,
       copiedRowId,
       expandedWorkGroups,
@@ -2443,6 +2468,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
               environmentId: props.environmentId,
               dispatchingMessageId: props.dispatchingMessageId,
               onEditPendingMessage: props.onEditPendingMessage,
+              rewind: props.rewind,
               onUseArtifactTemplate: props.onUseArtifactTemplate,
               threadId: props.threadId,
               copiedRowId,
@@ -2493,6 +2519,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       setupAnchorIndex,
       props.dispatchingMessageId,
       props.onEditPendingMessage,
+      props.rewind,
       copiedRowId,
       disclosureToggleSettling,
       expandedWorkRows,

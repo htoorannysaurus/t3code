@@ -106,6 +106,8 @@ import { ThreadBrowserFloat } from "../browser/ThreadBrowserFloat";
 import { useThreadServerBrowserTabs } from "../../state/preview";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 import { scopedThreadKey } from "../../lib/scopedEntities";
+import { getComposerDraftSnapshot } from "../../state/use-composer-drafts";
+import { useThreadRewind } from "./useThreadRewind";
 import {
   clearThreadComposerError,
   threadComposerErrorsAtom,
@@ -800,6 +802,27 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
       ? resolveProviderSkillsForCwd(provider, props.threadCwd ?? props.projectWorkspaceRoot)
       : [];
   }, [props.projectWorkspaceRoot, props.serverConfig, props.threadCwd, selectedInstanceId]);
+  const handleRewindRestored = useCallback((draftKey: string) => {
+    requestAnimationFrame(() => {
+      if (selectedThreadKeyRef.current !== draftKey) return;
+      const end = getComposerDraftSnapshot(draftKey).text.length;
+      composerEditorRef.current?.focus();
+      composerEditorRef.current?.setSelection({ start: end, end });
+    });
+  }, []);
+  const rewind = useThreadRewind({
+    environmentId: props.environmentId,
+    threadId: props.selectedThread.id,
+    feed: props.selectedThreadFeed,
+    providers: props.serverConfig?.providers,
+    providerInstanceId: props.selectedThread.runtime?.providerInstanceId ?? selectedInstanceId,
+    // A native subagent has no composer to put the prompt back into.
+    canOperateThread: props.canOperateThread && !isProviderSubagent,
+    connected: props.connectionStateLabel === "connected",
+    threadBusy: props.activeThreadBusy,
+    queuedEditActive: props.queuedRunEdit !== null,
+    onRestored: handleRewindRestored,
+  });
 
   useLayoutEffect(() => {
     selectedThreadKeyRef.current = selectedThreadKey;
@@ -1078,6 +1101,7 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
               // A native subagent has no composer to edit a pending message in;
               // Cancel on the edit banner would discard it.
               onEditPendingMessage={isProviderSubagent ? null : handleEditPendingMessage}
+              rewind={rewind}
               contentPresentation={props.contentPresentation}
               agentLabel={agentLabel}
               threadTitle={props.selectedThread.title}
