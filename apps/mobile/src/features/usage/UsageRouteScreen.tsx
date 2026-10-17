@@ -52,6 +52,7 @@ import { UsageDailyChart } from "./UsageDailyChart";
 import { toggleUsageEnvironment } from "./usageEnvironmentSelection";
 import { useRefreshLimits } from "./UsageLimitsSection";
 import { UsageLimitsSection } from "./UsageLimitsPooled";
+import { WeekTrendSection } from "./WeekTrendSection";
 import { Menu } from "../../components/ui/Menu";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import type { UsageChartMetric } from "./usageChartData";
@@ -283,19 +284,22 @@ export function UsageRouteScreen() {
           className="gap-6"
         >
           {showingLimits ? (
-            <UsageLimitsSection
-              now={limits.now}
-              failedLabels={limits.failedLabels}
-              selectedEnvironmentIds={selectedEnvironmentIds}
-              cursorPrompt={
-                cursorAccessEnvironments.length > 0 ? (
-                  <CursorEnableLimits
-                    environments={cursorAccessEnvironments}
-                    onEnabled={refreshAfterCursorEnable}
-                  />
-                ) : null
-              }
-            />
+            <>
+              <WeekTrendSection now={limits.now} selectedEnvironmentIds={selectedEnvironmentIds} />
+              <UsageLimitsSection
+                now={limits.now}
+                failedLabels={limits.failedLabels}
+                selectedEnvironmentIds={selectedEnvironmentIds}
+                cursorPrompt={
+                  cursorAccessEnvironments.length > 0 ? (
+                    <CursorEnableLimits
+                      environments={cursorAccessEnvironments}
+                      onEnabled={refreshAfterCursorEnable}
+                    />
+                  ) : null
+                }
+              />
+            </>
           ) : (
             <>
               <View className="gap-3 ios:flex-row ios:items-center">
