@@ -22,7 +22,7 @@ import { AuthOrchestrationOperateScope, type EnvironmentMachineKind } from "@t3t
 import { canSnooze, resolveSnoozePresets } from "@t3tools/client-runtime/state/thread-settled";
 import type { MenuAction } from "@react-native-menu/menu";
 import { memo, useCallback, useEffect, useMemo, useState, type ComponentProps } from "react";
-import { Pressable, useWindowDimensions, View } from "react-native";
+import { ActionSheetIOS, Platform, Pressable, useWindowDimensions, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
 import type { ThreadListProvider } from "../../state/thread-list-environments";
@@ -43,6 +43,8 @@ import { ThreadSwipeable } from "../home/thread-swipe-actions";
 import { buildThreadTitleRegenerationMenuItems } from "./thread-title-regeneration-menu";
 import {
   THREAD_LIST_V2_SETTLED_PAGE_COUNT,
+  buildThreadListV2SnoozeSheet,
+  resolveThreadListV2FullSwipe,
   resolveThreadListV2SnoozeGateExpiryMs,
   resolveThreadListV2SnoozeMenuSelection,
   threadHasUnseenCompletion,
@@ -877,11 +879,33 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         : null,
     [handleMenuAction, snoozePresetActions, swipeActions.secondary, thread.title],
   );
+  // Fork: a long swipe left asks when to snooze rather than settling, using the
+  // same presets as the Snooze button. Settle stays a tap in the revealed actions.
+  const fullSwipe = resolveThreadListV2FullSwipe({
+    secondary: swipeActions.secondary,
+    snoozePickerAvailable: Platform.OS === "ios",
+  });
+  const openSnoozePicker = useCallback(() => {
+    const sheet = buildThreadListV2SnoozeSheet(resolveSnoozePresets(new Date()));
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: "Snooze until",
+        options: [...sheet.options],
+        cancelButtonIndex: sheet.cancelButtonIndex,
+      },
+      (index) => {
+        const event = sheet.events[index];
+        if (event) handleMenuAction({ nativeEvent: { event } });
+      },
+    );
+  }, [handleMenuAction]);
   const swipeAccessibilityHint = !canOperateThread
     ? "Opens the thread"
     : secondaryAction === null
       ? `Opens the thread. Swipe left to ${primaryAction.label.toLowerCase()}.`
-      : `Opens the thread. Swipe left for ${primaryAction.label.toLowerCase()} and snooze actions.`;
+      : fullSwipe === "snooze-picker"
+        ? `Opens the thread. Swipe left all the way to choose a snooze time, or partway for ${primaryAction.label.toLowerCase()} and snooze buttons.`
+        : `Opens the thread. Swipe left for ${primaryAction.label.toLowerCase()} and snooze actions.`;
 
   const cardContent = (
     <>
@@ -1212,9 +1236,10 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         compactActions={variant === "slim"}
         containerStyle={rowAppearance.swipeContainerStyle}
         enableTrackpadSwipe
-        fullSwipeAction="primary"
+        fullSwipeAction={fullSwipe === "snooze-picker" ? "secondary" : "primary"}
         fullSwipeWidth={props.fullSwipeWidth ?? windowWidth - 32}
         onDelete={handleDelete}
+        onFullSwipeSecondary={fullSwipe === "snooze-picker" ? openSnoozePicker : undefined}
         onSwipeableClose={props.onSwipeableClose}
         onSwipeableWillOpen={props.onSwipeableWillOpen}
         primaryAction={primaryAction}

@@ -228,11 +228,18 @@ interface ThreadSwipeableProps {
   /**
    * Omitted keeps the v1 Delete behavior only when the built-in Delete
    * secondary action is in use; custom or absent secondary actions default to
-   * the advertised primary action.
+   * the advertised primary action. "secondary" stretches the secondary button
+   * and calls onFullSwipeSecondary; without a secondary action it falls back
+   * to "primary".
    */
-  readonly fullSwipeAction?: "delete" | "primary";
+  readonly fullSwipeAction?: "delete" | "primary" | "secondary";
   readonly fullSwipeWidth: number;
   readonly onDelete: () => void;
+  /**
+   * Runs when a full swipe commits the secondary action. The row springs shut
+   * first, so this is for opening something (a picker), not for dismissing.
+   */
+  readonly onFullSwipeSecondary?: () => void;
   readonly onSwipeableClose?: (methods: SwipeableMethods) => void;
   readonly onSwipeableWillOpen?: (methods: SwipeableMethods) => void;
   readonly primaryAction: ThreadSwipeAction;
@@ -278,7 +285,9 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
   const actionsWidth = swipeActionsWidth(hasSecondaryAction);
   const fullSwipeThreshold = Math.max(actionsWidth + 44, props.fullSwipeWidth * 0.58);
   const fullSwipeAction =
-    props.fullSwipeAction ?? (props.secondaryAction === undefined ? "delete" : "primary");
+    props.fullSwipeAction === "secondary" && props.secondaryAction == null
+      ? "primary"
+      : (props.fullSwipeAction ?? (props.secondaryAction === undefined ? "delete" : "primary"));
   const close = useCallback(() => swipeableRef.current?.close(), []);
   const gateEnabled = use(SwipeableScrollGateContext);
   const mountedRef = useRef(true);
@@ -375,6 +384,11 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
     primaryAction.onPress();
     if (!pendingDismissRef.current) swipeableRef.current?.close();
   }, [primaryAction]);
+  const onFullSwipeSecondary = props.onFullSwipeSecondary;
+  const commitFullSwipeSecondary = useCallback(() => {
+    swipeableRef.current?.close();
+    onFullSwipeSecondary?.();
+  }, [onFullSwipeSecondary]);
   const handleRelease = useCallback(
     (translation: SharedValue<number>) => {
       "worklet";
@@ -383,9 +397,19 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
         runOnJS(commitPrimaryAction)();
         return true;
       }
+      if (fullSwipeAction === "secondary" && -translation.value >= fullSwipeThreshold) {
+        runOnJS(commitFullSwipeSecondary)();
+        return true;
+      }
       return false;
     },
-    [commitPrimaryAction, dismissing, fullSwipeAction, fullSwipeThreshold],
+    [
+      commitFullSwipeSecondary,
+      commitPrimaryAction,
+      dismissing,
+      fullSwipeAction,
+      fullSwipeThreshold,
+    ],
   );
   const handleFullSwipeArmedChange = useCallback((armed: boolean) => {
     if (armed && !fullSwipeArmedRef.current) {
@@ -435,7 +459,7 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
             }
 
             props.onSwipeableWillOpen?.(methods);
-            if (fullSwipeArmedRef.current && fullSwipeAction !== "primary") {
+            if (fullSwipeArmedRef.current && fullSwipeAction === "delete") {
               fullSwipeArmedRef.current = false;
               methods.close();
               props.onDelete();
@@ -677,7 +701,7 @@ function SwipeActionButton(props: {
 export function ThreadSwipeActions(props: {
   readonly backgroundColor: ColorValue;
   readonly compact: boolean;
-  readonly fullSwipeAction?: "delete" | "primary";
+  readonly fullSwipeAction?: "delete" | "primary" | "secondary";
   readonly fullSwipeThreshold: number;
   readonly onFullSwipeArmedChange: (armed: boolean) => void;
   readonly primaryAction: ThreadSwipeAction;

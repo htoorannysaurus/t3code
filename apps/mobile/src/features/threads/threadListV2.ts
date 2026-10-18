@@ -115,6 +115,41 @@ export function resolveThreadListV2SwipeActions(input: {
   };
 }
 
+/**
+ * What a long swipe left commits. Where Snooze is offered it opens the
+ * "Snooze until" picker instead of settling, so the user picks the time; rows
+ * without Snooze (snoozed rows, archive, no snooze support) keep committing
+ * their primary action. The picker is a native action sheet, so platforms
+ * without one keep the primary action too.
+ */
+export function resolveThreadListV2FullSwipe(input: {
+  readonly secondary: "snooze" | null;
+  readonly snoozePickerAvailable: boolean;
+}): "snooze-picker" | "primary" {
+  return input.secondary === "snooze" && input.snoozePickerAvailable ? "snooze-picker" : "primary";
+}
+
+/**
+ * Options for the full-swipe "Snooze until" action sheet: the same presets as
+ * the Snooze button's menu, then Custom… and Cancel. `events` lines up with
+ * `options` and carries the menu event each choice maps to (null = cancel).
+ */
+export function buildThreadListV2SnoozeSheet(presets: ReadonlyArray<SnoozePreset>): {
+  readonly options: ReadonlyArray<string>;
+  readonly events: ReadonlyArray<string | null>;
+  readonly cancelButtonIndex: number;
+} {
+  const options = [
+    ...presets.map((preset) =>
+      preset.whenLabel ? `${preset.label} · ${preset.whenLabel}` : preset.label,
+    ),
+    "Custom…",
+    "Cancel",
+  ];
+  const events = [...presets.map((preset) => `snooze:${preset.id}`), "snooze:custom", null];
+  return { options, events, cancelButtonIndex: options.length - 1 };
+}
+
 export function resolveThreadListV2SnoozeGateExpiryMs(
   thread: Pick<
     EnvironmentThreadShell,

@@ -32,6 +32,8 @@ import {
   buildThreadListV2ListItems,
   getThreadListV2OrderedSection,
   isThreadListV2ListItem,
+  buildThreadListV2SnoozeSheet,
+  resolveThreadListV2FullSwipe,
   resolveThreadListV2SnoozeMenuSelection,
   resolveThreadListV2SnoozeGateExpiryMs,
   resolveThreadListV2Status,
@@ -2379,5 +2381,59 @@ describe("Working section beta", () => {
       "v2-settled-shelf",
       "settled",
     ]);
+  });
+});
+
+describe("resolveThreadListV2FullSwipe", () => {
+  it("opens the snooze picker where Snooze is offered", () => {
+    expect(resolveThreadListV2FullSwipe({ secondary: "snooze", snoozePickerAvailable: true })).toBe(
+      "snooze-picker",
+    );
+  });
+
+  it("keeps the primary action where Snooze is not offered or there is no picker", () => {
+    expect(resolveThreadListV2FullSwipe({ secondary: null, snoozePickerAvailable: true })).toBe(
+      "primary",
+    );
+    expect(
+      resolveThreadListV2FullSwipe({ secondary: "snooze", snoozePickerAvailable: false }),
+    ).toBe("primary");
+  });
+
+  it("leaves snoozed rows on Wake", () => {
+    const actions = resolveThreadListV2SwipeActions({
+      variant: "card",
+      settlementSupported: true,
+      snoozeSupported: true,
+      snoozable: true,
+      snoozed: true,
+    });
+    expect(
+      resolveThreadListV2FullSwipe({ secondary: actions.secondary, snoozePickerAvailable: true }),
+    ).toBe("primary");
+  });
+});
+
+describe("buildThreadListV2SnoozeSheet", () => {
+  it("lists the presets, then Custom and Cancel, with matching menu events", () => {
+    const sheet = buildThreadListV2SnoozeSheet([
+      { id: "hour", label: "In 1 hour", whenLabel: "3:00 PM", snoozedUntil: "x" },
+      { id: "next-week", label: "Next week", whenLabel: "", snoozedUntil: "y" },
+    ] as never);
+    expect(sheet.options).toEqual(["In 1 hour · 3:00 PM", "Next week", "Custom…", "Cancel"]);
+    expect(sheet.events).toEqual(["snooze:hour", "snooze:next-week", "snooze:custom", null]);
+    expect(sheet.cancelButtonIndex).toBe(3);
+  });
+
+  it("maps every preset event back to a snooze selection", () => {
+    const now = new Date("2026-10-18T12:00:00Z");
+    const presets = resolveSnoozePresets(now);
+    const sheet = buildThreadListV2SnoozeSheet(presets);
+    for (const event of sheet.events.slice(0, presets.length)) {
+      expect(
+        resolveThreadListV2SnoozeMenuSelection({ event: event!, displayedPresets: presets, now })
+          ._tag,
+      ).toBe("selected");
+    }
   });
 });
