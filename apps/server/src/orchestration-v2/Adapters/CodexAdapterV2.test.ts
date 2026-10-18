@@ -3976,6 +3976,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       readonly omitPhase?: boolean;
       readonly streamed?: boolean;
       readonly completionDelayMs?: number;
+      readonly abandoned?: boolean;
     }>,
   ) => {
     const nativeThreadId = `native-${scenario}-thread`;
@@ -4048,7 +4049,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
                   },
                 },
               },
-              completed,
+              ...(answer.abandoned ? [] : [completed]),
             ];
           },
         ),
@@ -4145,6 +4146,46 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         ),
       ),
     ),
+  );
+
+  it.effect.each([0, 100])(
+    "keeps the replacement answer last after an abandoned final stream (%ims)",
+    (completionDelayMs) =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const transcript = finalAnswerTranscript("codex-abandoned-final", [
+            { id: "draft", text: "You have 356 tools, across", streamed: true, abandoned: true },
+            { id: "replacement", text: "Here is the complete task list.", completionDelayMs },
+          ]);
+          const harness = yield* makeCodexReplayHarness(transcript);
+          const now = yield* DateTime.now;
+          yield* harness.runtime.startTurn(
+            makeCodexTestTurnInput({
+              threadId: harness.threadId,
+              providerThread: harness.providerThread,
+              now,
+              attemptId: RunAttemptId.make("attempt-codex-abandoned-final"),
+              text: "Reply with the requested recovery marker.",
+            }),
+          );
+          yield* Effect.yieldNow;
+          if (completionDelayMs > 0) yield* TestClock.adjust("100 millis");
+          yield* awaitUntil(() => harness.terminalEvents().length === 1, "root turn terminal");
+          const items = assistantTurnItems(harness.events);
+          assert.equal(items.at(-1)?.text, "Here is the complete task list.");
+          const draft = items.findLast((item) => item.text === "You have 356 tools, across");
+          assert.equal(draft?.status, "interrupted");
+          assert.equal(draft?.streaming, false);
+          assert.equal(
+            assistantMessages(harness.events).at(-1)?.message.text,
+            "Here is the complete task list.",
+          );
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+          ),
+        ),
+      ),
   );
 
   it.effect("suppresses a later streamed duplicate final answer", () =>
