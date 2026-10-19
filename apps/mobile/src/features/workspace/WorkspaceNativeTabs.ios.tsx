@@ -61,7 +61,12 @@ export function WorkspaceNativeTabs(props: {
     (metrics?.verticalBarEdge ?? "none") === "none";
   const [provenance, setProvenance] = useState(0);
   const systemTabBar = useSystemWorkspaceTabBar();
-  const selectedTab = workspace.state.selectedTab;
+  // iPhone's bar has no Pulls tab; pull requests still open from threads and links.
+  const showsPullRequestsTab = deviceType === "pad";
+  const selectedTab =
+    showsPullRequestsTab || workspace.state.selectedTab !== "pullRequests"
+      ? workspace.state.selectedTab
+      : "threads";
   const request = useMemo(
     () => ({ selectedScreenKey: selectedTab, baseProvenance: provenance }),
     [selectedTab, provenance],
@@ -88,7 +93,7 @@ export function WorkspaceNativeTabs(props: {
         }}
         onTabSelected={({ nativeEvent }: NativeSyntheticEvent<TabSelectedEvent>) => {
           const tab = nativeEvent.selectedScreenKey;
-          if (tab !== "threads" && tab !== "pullRequests") return;
+          if (tab !== "threads" && (tab !== "pullRequests" || !showsPullRequestsTab)) return;
           setProvenance(nativeEvent.provenance);
           if (nativeEvent.actionOrigin === "programmatic-js" || tab === selectedTab) return;
           Keyboard.dismiss();
@@ -96,7 +101,10 @@ export function WorkspaceNativeTabs(props: {
           workspace.dispatch({ type: "select", tab });
         }}
       >
-        {(["threads", USAGE_TAB, "pullRequests"] as const).map((tab) =>
+        {(showsPullRequestsTab
+          ? (["threads", USAGE_TAB, "pullRequests"] as const)
+          : (["threads", USAGE_TAB] as const)
+        ).map((tab) =>
           tab === USAGE_TAB ? (
             // A button, not a tab: opens the usage screen over the current tab.
             <Tabs.Screen
