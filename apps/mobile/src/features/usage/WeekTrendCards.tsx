@@ -6,7 +6,6 @@ import { useMemo } from "react";
 import { View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
-import { ProviderIcon } from "../../components/ProviderIcon";
 import { environmentPresentations } from "../../state/presentation";
 import { useUsage } from "../../state/usage";
 import { useProviderColors } from "./usageProviders";
@@ -16,7 +15,6 @@ const DRIVER_KIND: Partial<Record<string, UsageProviderKind>> = {
   claudeAgent: "claude",
   codex: "codex",
 };
-const DRIVER_LABEL: Partial<Record<string, string>> = { claudeAgent: "Claude", codex: "Codex" };
 const BAR_HEIGHT = 72;
 
 function formatWhen(ms: number): string {
@@ -27,9 +25,8 @@ function formatWhen(ms: number): string {
   });
 }
 
-function TrendCard(props: {
+export function TrendCard(props: {
   readonly title: string;
-  readonly driver: string;
   readonly trend: WeekTrend;
   readonly color: string;
   readonly now: number;
@@ -49,7 +46,6 @@ function TrendCard(props: {
   return (
     <View className="gap-3 rounded-[24px] border-continuous bg-grouped-card p-4">
       <View className="flex-row items-center gap-2">
-        <ProviderIcon provider={props.driver} size={16} />
         <Text className="min-w-0 flex-1 text-sm font-t3-medium text-foreground" numberOfLines={1}>
           {props.title}
         </Text>
@@ -125,12 +121,20 @@ function TrendCard(props: {
   );
 }
 
+export interface WeekTrendCard {
+  readonly key: string;
+  readonly driver: string;
+  /** The limit's name, plus the account when one provider has several. */
+  readonly title: string;
+  readonly color: string;
+  readonly trend: WeekTrend;
+}
+
 /** Weekly limits projected forward: where each one lands at reset at the current rate. */
-export function WeekTrendSection(props: {
-  readonly now: number;
-  readonly selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null;
-}) {
-  const { now, selectedEnvironmentIds } = props;
+export function useWeekTrendCards(
+  now: number,
+  selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null,
+): readonly WeekTrendCard[] {
   const presentations = useAtomValue(environmentPresentations.presentationsWithProvidersAtom);
   const window = useMemo(() => makeWindow(9), []);
   const { merged } = useUsage(window, selectedEnvironmentIds);
@@ -142,7 +146,7 @@ export function WeekTrendSection(props: {
   const accounts = collectLimitAccounts(selected);
   const sameDriverCount = (driver: string) =>
     accounts.filter((account) => account.driver === driver).length;
-  const cards = accounts.flatMap((account) => {
+  return accounts.flatMap((account) => {
     const kind = DRIVER_KIND[account.driver];
     const dailyCost = new Map(
       merged.daily.map((day) => [
@@ -155,7 +159,6 @@ export function WeekTrendSection(props: {
       .flatMap((limit) => {
         const trend = weekTrend({ window: limit, now, timeZone: window.timeZone, dailyCost });
         if (!trend) return [];
-        const name = DRIVER_LABEL[account.driver] ?? String(account.driver);
         const who =
           sameDriverCount(account.driver) > 1
             ? ` (${account.displayName ?? account.email ?? ""})`
@@ -163,21 +166,12 @@ export function WeekTrendSection(props: {
         return [
           {
             key: `${account.key}:${limit.id}`,
-            title: `${name}${who} · ${limit.label}`,
             driver: account.driver,
+            title: `${limit.label}${who}`,
             color: (kind && colors[kind]) || account.accentColor || "#8b8b8b",
             trend,
           },
         ];
       });
   });
-  if (cards.length === 0) return null;
-  return (
-    <View className="gap-3">
-      <Text className="px-1 text-sm font-t3-medium text-foreground-muted">This week</Text>
-      {cards.map(({ key, ...card }) => (
-        <TrendCard key={key} {...card} now={now} />
-      ))}
-    </View>
-  );
 }
