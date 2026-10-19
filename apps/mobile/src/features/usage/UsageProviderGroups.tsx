@@ -40,7 +40,10 @@ export function UsageProviderGroups(props: {
   readonly selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null;
 }) {
   const presentations = useAtomValue(environmentPresentations.presentationsWithProvidersAtom);
-  const trendCards = useWeekTrendCards(props.now, props.selectedEnvironmentIds);
+  // Joe only wants the weekly projection for Claude, not Codex.
+  const trendCards = useWeekTrendCards(props.now, props.selectedEnvironmentIds).filter(
+    (card) => card.driver !== "codex",
+  );
   const selected =
     props.selectedEnvironmentIds === null
       ? presentations
