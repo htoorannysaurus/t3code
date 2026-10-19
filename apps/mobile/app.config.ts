@@ -132,6 +132,17 @@ if (customIosBundleIdentifier && !IOS_BUNDLE_IDENTIFIER_PATTERN.test(customIosBu
 const iosBundleIdentifier = isIosPersonalTeamBuild
   ? personalTeamBundleIdentifier!
   : (customIosBundleIdentifier ?? variant.iosBundleIdentifier);
+// Universal links and Sign in with Apple are bound to T3's own App ID, so a copy signed under
+// another identifier cannot use them; push, app groups and extensions work under any paid team.
+const usesT3AppIdServices = !isIosPersonalTeamBuild && !customIosBundleIdentifier;
+const apsEnvironmentOverride = repoEnv.T3CODE_IOS_APS_ENVIRONMENT?.trim();
+if (
+  apsEnvironmentOverride &&
+  apsEnvironmentOverride !== "development" &&
+  apsEnvironmentOverride !== "production"
+) {
+  throw new Error("T3CODE_IOS_APS_ENVIRONMENT must be development or production.");
+}
 
 const dmSansFonts = {
   regular: "@expo-google-fonts/dm-sans/400Regular/DMSans_400Regular.ttf",
@@ -272,10 +283,9 @@ const config: ExpoConfig = {
     // does not fall back to a personal team (which cannot sign app groups,
     // Sign in with Apple, or push notification entitlements).
     appleTeamId: iosTeamId,
-    associatedDomains: [
-      `applinks:${variant.relyingParty}`,
-      `webcredentials:${variant.relyingParty}`,
-    ],
+    associatedDomains: usesT3AppIdServices
+      ? [`applinks:${variant.relyingParty}`, `webcredentials:${variant.relyingParty}`]
+      : [],
     entitlements: {
       "keychain-access-groups": [`$(AppIdentifierPrefix)${variant.iosBundleIdentifier}`],
     },
@@ -372,12 +382,14 @@ const config: ExpoConfig = {
       {
         icon: variant.assets.androidNotificationIcon,
         color: variant.assets.androidNotificationColor,
-        mode: APP_VARIANT === "development" ? "development" : "production",
+        // Development-signed self builds need the sandbox APNs environment their profile grants.
+        mode:
+          apsEnvironmentOverride ?? (APP_VARIANT === "development" ? "development" : "production"),
       },
     ],
     // appleSignIn must be gated here: withoutIosPersonalTeamCapabilities.cjs runs before
     // plugins earlier in this array, so it cannot strip the entitlement Clerk would add.
-    ["@clerk/expo", { theme: "./clerk-theme.json", appleSignIn: !isIosPersonalTeamBuild }],
+    ["@clerk/expo", { theme: "./clerk-theme.json", appleSignIn: usesT3AppIdServices }],
     "expo-web-browser",
     [
       "expo-quick-actions",

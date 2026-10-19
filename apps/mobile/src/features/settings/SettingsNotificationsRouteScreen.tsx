@@ -4,6 +4,7 @@ import { readEnvironmentScope } from "../../state/session";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { useAuth } from "@clerk/expo";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import * as Clipboard from "expo-clipboard";
 import * as Notifications from "expo-notifications";
 import { useNavigation } from "@react-navigation/native";
 import * as Effect from "effect/Effect";
@@ -12,7 +13,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { AppState, Linking, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AppText as Text } from "../../components/ui/AppText";
 import {
   isAtomCommandInterrupted,
   reportAtomCommandResult,
@@ -57,21 +57,150 @@ function useDeviceRegistered(): boolean {
 
 export function SettingsNotificationsRouteScreen() {
   if (!hasCloudPublicConfig()) {
-    return (
-      <SettingsScreen title="Notifications">
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          contentContainerClassName="px-5 pt-4"
-        >
-          <Text className="text-base text-foreground-muted">
-            Notifications require T3 Connect in this app build.
-          </Text>
-        </ScrollView>
-      </SettingsScreen>
-    );
+    return <LocalSettingsNotificationsRouteScreen />;
   }
 
   return <ConfiguredSettingsNotificationsRouteScreen />;
+}
+
+// Builds without T3 Connect still need a way to ask for notification access: iOS only lists an
+// app under Settings > Notifications once it has asked. The device token is shown so a
+// self-hosted sender can address this install directly.
+function LocalSettingsNotificationsRouteScreen() {
+  const insets = useSafeAreaInsets();
+  const [notificationStatus, setNotificationStatus] = useState<NotificationStatus>("checking");
+  const [pushToken, setPushToken] = useState<string | null>(null);
+  const [pushTokenError, setPushTokenError] = useState<string | null>(null);
+
+  const refreshNotifications = useCallback(async () => {
+    if (Platform.OS !== "ios" && Platform.OS !== "android") {
+      setNotificationStatus("unsupported");
+      return;
+    }
+    const result = await settlePromise(() => Notifications.getPermissionsAsync());
+    if (result._tag === "Failure") {
+      reportAtomCommandResult(result, { label: "notification permission refresh" });
+      setNotificationStatus("disabled");
+      return;
+    }
+    setNotificationStatus(result.value.granted ? "enabled" : "disabled");
+  }, []);
+
+  useEffect(() => {
+    void refreshNotifications();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshNotifications();
+    });
+    return () => subscription.remove();
+  }, [refreshNotifications]);
+
+  useEffect(() => {
+    if (notificationStatus !== "enabled") return;
+    let cancelled = false;
+    void settlePromise(() => Notifications.getDevicePushTokenAsync()).then((result) => {
+      if (cancelled) return;
+      if (result._tag === "Failure") {
+        const error = squashAtomCommandFailure(result);
+        setPushToken(null);
+        setPushTokenError(error instanceof Error ? error.message : "Could not register for push.");
+        return;
+      }
+      setPushTokenError(null);
+      setPushToken(typeof result.value.data === "string" ? result.value.data : null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [notificationStatus]);
+
+  const requestNotifications = useCallback(async () => {
+    const result = await settleAsyncResult(() =>
+      runtime.runPromiseExit(requestAgentNotificationPermission),
+    );
+    if (result._tag === "Failure") {
+      if (!isAtomCommandInterrupted(result)) {
+        const error = squashAtomCommandFailure(result);
+        Dialog.alert(
+          "Notifications unavailable",
+          error instanceof Error ? error.message : "Could not request notification permission.",
+        );
+      }
+      return;
+    }
+    if (result.value.type === "granted") {
+      setNotificationStatus("enabled");
+      return;
+    }
+    if (result.value.type === "unsupported") {
+      setNotificationStatus("unsupported");
+      return;
+    }
+    setNotificationStatus("disabled");
+    if (!result.value.canAskAgain) {
+      Dialog.alert(
+        "Notifications disabled",
+        "Notifications were denied for this app. Open Settings to enable them.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Settings", onPress: () => void Linking.openSettings() },
+        ],
+      );
+    }
+  }, []);
+
+  const handleNotificationsChange = useCallback(
+    (enabled: boolean) => {
+      if (enabled) {
+        void requestNotifications();
+        return;
+      }
+      Dialog.alert("Disable notifications", "Open system Settings to turn notifications off.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Open Settings", onPress: () => void Linking.openSettings() },
+      ]);
+    },
+    [requestNotifications],
+  );
+
+  const pushTokenLabel = pushToken
+    ? `${pushToken.slice(0, 8)}…${pushToken.slice(-8)}`
+    : (pushTokenError ?? (notificationStatus === "enabled" ? "Registering…" : "Not registered"));
+
+  return (
+    <SettingsScreen title="Notifications">
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+        className="flex-1"
+        contentContainerClassName="gap-6 px-5 pt-4"
+        contentContainerStyle={{
+          paddingBottom: Math.max(insets.bottom, 18) + 18,
+        }}
+      >
+        <SettingsSection title="This device">
+          <SettingsSwitchRow
+            icon="bell.badge"
+            label="Allow Notifications"
+            disabled={notificationStatus === "checking" || notificationStatus === "unsupported"}
+            value={notificationStatus === "enabled"}
+            onValueChange={handleNotificationsChange}
+          />
+          <SettingsRow
+            icon="doc.on.doc"
+            label="Push Token"
+            value={pushTokenLabel}
+            valuePosition="below"
+            disabled={!pushToken}
+            onPress={() => {
+              if (!pushToken) return;
+              void Clipboard.setStringAsync(pushToken);
+              Dialog.alert("Copied", "The device push token is on the clipboard.");
+            }}
+          />
+        </SettingsSection>
+      </ScrollView>
+    </SettingsScreen>
+  );
 }
 
 function ConfiguredSettingsNotificationsRouteScreen() {
