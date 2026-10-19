@@ -52,8 +52,7 @@ import { UsageDailyChart } from "./UsageDailyChart";
 import { toggleUsageEnvironment } from "./usageEnvironmentSelection";
 import { useRefreshLimits } from "./UsageLimitsSection";
 import { UsageLimitsSection } from "./UsageLimitsPooled";
-import { UsageGlanceCard } from "./UsageGlanceCard";
-import { WeekTrendSection } from "./WeekTrendSection";
+import { UsageProviderGroups } from "./UsageProviderGroups";
 import { Menu } from "../../components/ui/Menu";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import type { UsageChartMetric } from "./usageChartData";
@@ -266,8 +265,10 @@ export function UsageRouteScreen() {
         >
           {showingLimits ? (
             <>
-              <UsageGlanceCard now={limits.now} selectedEnvironmentIds={selectedEnvironmentIds} />
-              <WeekTrendSection now={limits.now} selectedEnvironmentIds={selectedEnvironmentIds} />
+              <UsageProviderGroups
+                now={limits.now}
+                selectedEnvironmentIds={selectedEnvironmentIds}
+              />
               <Text className="-mb-3 px-1 text-xs font-t3-medium uppercase text-foreground-muted">
                 Accounts and refills
               </Text>
@@ -833,46 +834,67 @@ function ModelsSection(props: { readonly merged: MergedUsage; readonly metric: U
       ? b.costUsd - a.costUsd || b.totalTokens - a.totalTokens
       : b.totalTokens - a.totalTokens || b.costUsd - a.costUsd,
   );
+  // One card per provider, biggest first, so Codex and Claude models never interleave.
+  const providers = [...merged.providers]
+    .sort((a, b) => (metric === "cost" ? b.costUsd - a.costUsd : b.totalTokens - a.totalTokens))
+    .map((provider) => provider.provider);
+  for (const model of ordered) {
+    if (!providers.includes(model.provider)) providers.push(model.provider);
+  }
 
   return (
-    <SettingsSection title="By model">
-      {ordered.map((model, index) => (
-        <View
-          key={`${model.provider}:${model.model}`}
-          className={
-            index === 0
-              ? "flex-row items-center gap-3 p-4"
-              : "flex-row items-center gap-3 border-t border-border-subtle p-4"
-          }
-        >
-          <View
-            className="size-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: colors[model.provider] }}
-          />
-          <View className="min-w-0 flex-1 gap-0.5">
-            <Text className="text-base text-foreground" numberOfLines={1}>
-              {model.model}
-            </Text>
-            <Text className="text-sm text-foreground-muted">
-              {metric === "tokens"
-                ? `${formatPercent(model.tokenShare)} of tokens · ${
-                    isModelCostUnknown(model) ? "no known rates" : formatUsd(model.costUsd)
-                  }`
-                : isModelCostUnknown(model)
-                  ? `no known rates · ${formatTokens(model.totalTokens)} tokens`
-                  : `${formatPercent(model.costShare)} of cost · ${formatTokens(model.totalTokens)} tokens`}
-            </Text>
-          </View>
-          <Text className="text-base tabular-nums text-foreground">
-            {metric === "tokens"
-              ? formatTokens(model.totalTokens)
-              : isModelCostUnknown(model)
-                ? "Unpriced"
-                : formatUsd(model.costUsd)}
-          </Text>
-        </View>
-      ))}
-    </SettingsSection>
+    <>
+      {providers.map((provider) => {
+        const models = ordered.filter((model) => model.provider === provider);
+        if (models.length === 0) return null;
+        return (
+          <SettingsSection
+            key={provider}
+            title={`${PROVIDER_LABEL[provider]} models`}
+            titleIcon={
+              <ProviderIcon provider={provider === "claude" ? "claudeAgent" : provider} size={14} />
+            }
+          >
+            {models.map((model, index) => (
+              <View
+                key={`${model.provider}:${model.model}`}
+                className={
+                  index === 0
+                    ? "flex-row items-center gap-3 p-4"
+                    : "flex-row items-center gap-3 border-t border-border-subtle p-4"
+                }
+              >
+                <View
+                  className="size-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: colors[model.provider] }}
+                />
+                <View className="min-w-0 flex-1 gap-0.5">
+                  <Text className="text-base text-foreground" numberOfLines={1}>
+                    {model.model}
+                  </Text>
+                  <Text className="text-sm text-foreground-muted">
+                    {metric === "tokens"
+                      ? `${formatPercent(model.tokenShare)} of tokens · ${
+                          isModelCostUnknown(model) ? "no known rates" : formatUsd(model.costUsd)
+                        }`
+                      : isModelCostUnknown(model)
+                        ? `no known rates · ${formatTokens(model.totalTokens)} tokens`
+                        : `${formatPercent(model.costShare)} of cost · ${formatTokens(model.totalTokens)} tokens`}
+                  </Text>
+                </View>
+                <Text className="text-base tabular-nums text-foreground">
+                  {metric === "tokens"
+                    ? formatTokens(model.totalTokens)
+                    : isModelCostUnknown(model)
+                      ? "Unpriced"
+                      : formatUsd(model.costUsd)}
+                </Text>
+              </View>
+            ))}
+          </SettingsSection>
+        );
+      })}
+    </>
   );
 }
 
