@@ -56,6 +56,10 @@ import {
 import { QueuedMessageIcon } from "./queued-message-icon";
 import { shouldRecedeThreadRow } from "./thread-row-emphasis";
 import { ThreadSearchMatchExcerpt } from "./thread-search-match";
+import {
+  HIGHLIGHTED_THREAD_TITLE_CLASS_NAME,
+  useThreadTitleHighlighted,
+} from "../../state/thread-title-highlight";
 
 interface StatusLabel {
   readonly label: string;
@@ -313,6 +317,7 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
   const isDraft = pendingTask.kind === "draft";
   const projectTitle = props.projectTitle ?? props.project?.title ?? pendingTask.projectTitle ?? "";
   const branch = pendingTask.branch;
+  const titleHighlighted = useThreadTitleHighlighted(pendingTask.environmentId);
 
   const handleMenuAction = useCallback(
     ({ nativeEvent }: { readonly nativeEvent: { readonly event: string } }) => {
@@ -368,6 +373,7 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
         className={cn(
           "mt-1 text-base font-t3-medium text-foreground",
           sidebarPane && "text-drawer-foreground",
+          titleHighlighted && HIGHLIGHTED_THREAD_TITLE_CLASS_NAME,
         )}
         numberOfLines={1}
       >
@@ -560,6 +566,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const sidebarPane = props.pane === "sidebar";
   const selected = props.selected === true;
   const rowAppearance = getThreadListV2RowAppearance(theme, sidebarPane, selected);
+  const titleHighlighted = useThreadTitleHighlighted(thread.environmentId);
 
   const status = resolveThreadListV2Status(thread);
   const isUnread = status === "ready" && threadHasUnseenCompletion(thread);
@@ -979,7 +986,9 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
           !recede && "font-t3-medium",
           selected
             ? selectedThreadRowColors.foregroundClassName
-            : rowAppearance.foregroundClassName,
+            : titleHighlighted
+              ? HIGHLIGHTED_THREAD_TITLE_CLASS_NAME
+              : rowAppearance.foregroundClassName,
         )}
         numberOfLines={2}
       >

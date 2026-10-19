@@ -1,5 +1,5 @@
 import * as Dialog from "../../components/ui/Dialog";
-import { useAtomValue } from "@effect/atom-react";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import {
   AuthProvidersManageScope,
@@ -17,7 +17,9 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { ScreenScrollView } from "../../components/ui/ScreenScrollView";
 import { appAtomRegistry } from "../../state/atom-registry";
+import { updateMobilePreferencesAtom } from "../../state/preferences";
 import { serverEnvironment } from "../../state/server";
+import { useThreadTitleHighlighted } from "../../state/thread-title-highlight";
 import { environmentSession, useEnvironmentScope, readEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useRemoteConnections } from "../../state/use-remote-environment-registry";
@@ -26,6 +28,7 @@ import { EnvironmentRoutesSection } from "./EnvironmentRoutesSection";
 import { SettingsActionRow } from "./components/SettingsActionRow";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
+import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
 import {
   canMaintainEnvironment,
   canUpdateEnvironmentProvider,
@@ -194,6 +197,7 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                 onUpdate={connections.onUpdateEnvironment}
               />
             </SettingsSection>
+            <ThreadTitleHighlightSection environmentId={environmentId} />
             <EnvironmentRoutesSection
               environmentId={environmentId}
               connected={connected}
@@ -379,5 +383,32 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
         )}
       </ScreenScrollView>
     </SettingsScreen>
+  );
+}
+
+function ThreadTitleHighlightSection({ environmentId }: { readonly environmentId: EnvironmentId }) {
+  const highlighted = useThreadTitleHighlighted(environmentId);
+  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  return (
+    <SettingsSection title="Thread list">
+      <SettingsSwitchRow
+        icon="paintbrush"
+        label="Highlight Thread Titles"
+        subtitle="Shows this environment's thread titles in amber, to tell machines apart."
+        value={highlighted}
+        onValueChange={(enabled) =>
+          savePreferences({
+            transform: (current) => {
+              const others = (current.highlightedThreadEnvironmentIds ?? []).filter(
+                (id) => id !== environmentId,
+              );
+              return {
+                highlightedThreadEnvironmentIds: enabled ? [...others, environmentId] : others,
+              };
+            },
+          })
+        }
+      />
+    </SettingsSection>
   );
 }

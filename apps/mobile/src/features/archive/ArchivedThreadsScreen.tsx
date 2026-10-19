@@ -26,6 +26,10 @@ import { relativeTime } from "../../lib/time";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { useServerConfigs } from "../../state/entities";
 import { useEnvironmentScope } from "../../state/session";
+import {
+  HIGHLIGHTED_THREAD_TITLE_CLASS_NAME,
+  useThreadTitleHighlighted,
+} from "../../state/thread-title-highlight";
 import { ThreadSwipeable } from "../home/thread-swipe-actions";
 import type { ArchivedThreadGroup, ArchivedThreadSortOrder } from "./archivedThreadList";
 import { SettingsScreenContent } from "../settings/components/SettingsScreen";
@@ -192,6 +196,7 @@ function ArchivedThreadRow(props: {
     AuthOrchestrationOperateScope,
   );
   const timestamp = relativeTime(props.thread.archivedAt ?? props.thread.updatedAt);
+  const titleHighlighted = useThreadTitleHighlighted(props.thread.environmentId);
   const subtitle = [props.environmentLabel, props.thread.branch].filter((part): part is string =>
     Boolean(part),
   );
@@ -211,7 +216,11 @@ function ArchivedThreadRow(props: {
       <View className="min-w-0 flex-1 gap-1">
         <View className="flex-row items-center gap-2">
           <Text
-            className="min-w-0 flex-1 text-base font-t3-bold leading-snug text-foreground"
+            className={
+              titleHighlighted
+                ? `min-w-0 flex-1 text-base font-t3-bold leading-snug ${HIGHLIGHTED_THREAD_TITLE_CLASS_NAME}`
+                : "min-w-0 flex-1 text-base font-t3-bold leading-snug text-foreground"
+            }
             numberOfLines={1}
           >
             {props.thread.title}
