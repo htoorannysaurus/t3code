@@ -13,7 +13,6 @@ import {
   type GlanceTone,
   updatedLabel,
 } from "./limitGlance";
-import { TrendCard, useWeekTrendCards } from "./WeekTrendCards";
 
 const DRIVER_LABEL: Partial<Record<string, string>> = {
   codex: "Codex",
@@ -31,19 +30,15 @@ const TONE_COLOR: Record<GlanceTone, string> = {
 
 /**
  * The Limits tab, one block per provider, so Codex and Claude never share a
- * card: a heading, a card with each limit window (spent, how far through the
- * window the clock is, the gap between the two, when it refills), then that
- * provider's weekly projections. Modelled on the Claudeputer usage screen.
+ * card: a heading, then a card with each limit window (spent, how far through
+ * the window the clock is, the gap between the two, when it refills).
+ * Modelled on the Claudeputer usage screen.
  */
 export function UsageProviderGroups(props: {
   readonly now: number;
   readonly selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null;
 }) {
   const presentations = useAtomValue(environmentPresentations.presentationsWithProvidersAtom);
-  // Joe only wants the weekly projection for Claude, not Codex.
-  const trendCards = useWeekTrendCards(props.now, props.selectedEnvironmentIds).filter(
-    (card) => card.driver !== "codex",
-  );
   const selected =
     props.selectedEnvironmentIds === null
       ? presentations
@@ -54,13 +49,7 @@ export function UsageProviderGroups(props: {
   const sections = buildGlanceSections(collectLimitPools(accounts, props.now), props.now).filter(
     (section) => section.rows.length > 0,
   );
-  const drivers = [
-    ...new Set([
-      ...sections.map((section) => section.driver),
-      ...trendCards.map((card) => card.driver),
-    ]),
-  ];
-  if (drivers.length === 0) return null;
+  if (sections.length === 0) return null;
   const updated = updatedLabel(
     accounts.map((account) => account.limits.checkedAt),
     props.now,
@@ -69,9 +58,8 @@ export function UsageProviderGroups(props: {
   return (
     <View className="gap-2">
       {updated ? <Text className="px-1 text-xs text-foreground-muted">{updated}</Text> : null}
-      {drivers.map((driver, index) => {
-        const section = sections.find((candidate) => candidate.driver === driver);
-        const trends = trendCards.filter((card) => card.driver === driver);
+      {sections.map((section, index) => {
+        const driver = section.driver;
         return (
           <View
             key={driver}
@@ -82,27 +70,17 @@ export function UsageProviderGroups(props: {
               <Text className="text-xl font-t3-bold text-foreground">
                 {DRIVER_LABEL[driver] ?? driver}
               </Text>
-              {section ? (
-                <View
-                  className="size-2 rounded-full"
-                  style={{ backgroundColor: TONE_COLOR[section.tone] }}
-                />
-              ) : null}
-              {section?.plan ? (
+              <View
+                className="size-2 rounded-full"
+                style={{ backgroundColor: TONE_COLOR[section.tone] }}
+              />
+              {section.plan ? (
                 <Text className="ml-auto text-sm text-foreground-muted" numberOfLines={1}>
                   {section.plan}
                 </Text>
               ) : null}
             </View>
-            {section ? <LimitsCard section={section} /> : null}
-            {trends.length > 0 ? (
-              <Text className="px-1 pt-1 text-sm font-t3-medium text-foreground-muted">
-                This week
-              </Text>
-            ) : null}
-            {trends.map(({ key, ...card }) => (
-              <TrendCard key={key} {...card} now={props.now} />
-            ))}
+            <LimitsCard section={section} />
           </View>
         );
       })}
