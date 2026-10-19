@@ -16,6 +16,12 @@ import { useSystemWorkspaceTabBar } from "./useSystemWorkspaceTabBar";
 const PULL_REQUEST_ICON = require("../../../assets/icons/pull-request.png");
 const COMPOSE_TAB = "compose";
 const USAGE_TAB = "usage";
+const SCHEDULED_TASKS_TAB = "scheduledTasks";
+// Buttons, not tabs: each opens its screen over the current tab.
+const BUTTON_TABS = {
+  [USAGE_TAB]: { title: "Usage", icon: "chart.bar.xaxis" },
+  [SCHEDULED_TASKS_TAB]: { title: "Scheduled", icon: "calendar.badge.clock" },
+} as const;
 
 /** Retain each native controller tree; removing its root can leave RNS's stack empty. */
 function RetainedWorkspaceTab(props: {
@@ -51,6 +57,7 @@ export function WorkspaceNativeTabs(props: {
   readonly onSelect: () => void;
   readonly onNewTask: () => void;
   readonly onOpenUsage: () => void;
+  readonly onOpenScheduledTasks: () => void;
 }) {
   const workspace = useWorkspaceTabs()!;
   const metrics = useNativeLayoutMetrics();
@@ -61,7 +68,8 @@ export function WorkspaceNativeTabs(props: {
     (metrics?.verticalBarEdge ?? "none") === "none";
   const [provenance, setProvenance] = useState(0);
   const systemTabBar = useSystemWorkspaceTabBar();
-  // iPhone's bar has no Pulls tab; pull requests still open from threads and links.
+  // iPhone's bar trades the Pulls tab for Scheduled tasks; pull requests still open from threads
+  // and links.
   const showsPullRequestsTab = deviceType === "pad";
   const selectedTab =
     showsPullRequestsTab || workspace.state.selectedTab !== "pullRequests"
@@ -85,6 +93,10 @@ export function WorkspaceNativeTabs(props: {
             Keyboard.dismiss();
             props.onOpenUsage();
           }
+          if (nativeEvent.preventedScreenKey === SCHEDULED_TASKS_TAB) {
+            Keyboard.dismiss();
+            props.onOpenScheduledTasks();
+          }
         }}
         onTabSelectionRejected={({
           nativeEvent,
@@ -102,17 +114,16 @@ export function WorkspaceNativeTabs(props: {
         }}
       >
         {(showsPullRequestsTab
-          ? (["threads", USAGE_TAB, "pullRequests"] as const)
-          : (["threads", USAGE_TAB] as const)
+          ? (["threads", USAGE_TAB, SCHEDULED_TASKS_TAB, "pullRequests"] as const)
+          : (["threads", USAGE_TAB, SCHEDULED_TASKS_TAB] as const)
         ).map((tab) =>
-          tab === USAGE_TAB ? (
-            // A button, not a tab: opens the usage screen over the current tab.
+          tab === USAGE_TAB || tab === SCHEDULED_TASKS_TAB ? (
             <Tabs.Screen
-              key={USAGE_TAB}
-              screenKey={USAGE_TAB}
-              title="Usage"
+              key={tab}
+              screenKey={tab}
+              title={BUTTON_TABS[tab].title}
               preventNativeSelection
-              ios={{ icon: { type: "sfSymbol", name: "chart.bar.xaxis" } }}
+              ios={{ icon: { type: "sfSymbol", name: BUTTON_TABS[tab].icon } }}
             >
               <View />
             </Tabs.Screen>

@@ -298,6 +298,12 @@ function WorkspaceStackView(props: ViewProps & { readonly nativeColumns: boolean
             params: { screen: "SettingsUsage" },
           })
         }
+        onOpenScheduledTasks={() =>
+          props.navigation.navigate("SettingsSheet", {
+            screen: "SettingsContent",
+            params: { screen: "SettingsScheduledTasks" },
+          })
+        }
         hidden={
           projection.detail.length > 0 &&
           !primaryVisible &&
