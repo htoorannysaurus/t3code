@@ -10,6 +10,7 @@ import {
   isValidElement,
   useLayoutEffect,
   useMemo,
+  useRef,
   use,
   type ReactElement,
   type ReactNode,
@@ -221,6 +222,37 @@ function collectToolbarItems(children: ReactNode): NativeToolbarItem[] {
   return items;
 }
 
+type MenuItems = NativeStackHeaderItemMenu["menu"]["items"];
+type PressHandlerVisitor = (path: string, onPress: () => void) => () => void;
+
+function mapMenuPressHandlers(
+  items: MenuItems,
+  path: string,
+  visit: PressHandlerVisitor,
+): MenuItems {
+  return items.map((item, index) =>
+    item.type === "submenu"
+      ? { ...item, items: mapMenuPressHandlers(item.items, `${path}.${index}`, visit) }
+      : { ...item, onPress: visit(`${path}.${index}`, item.onPress) },
+  );
+}
+
+function mapToolbarPressHandlers(
+  items: ReadonlyArray<NativeToolbarItem>,
+  visit: PressHandlerVisitor,
+): NativeToolbarItem[] {
+  return items.map((item, index) => {
+    if (item.type === "button") return { ...item, onPress: visit(`${index}`, item.onPress) };
+    if (item.type === "menu") {
+      return {
+        ...item,
+        menu: { ...item.menu, items: mapMenuPressHandlers(item.menu.items, `${index}`, visit) },
+      };
+    }
+    return item;
+  });
+}
+
 function NativeHeaderToolbarRoot(props: {
   readonly placement?: "left" | "right" | "bottom";
   readonly children?: ReactNode;
@@ -229,7 +261,23 @@ function NativeHeaderToolbarRoot(props: {
   const route = useRoute();
   const tabActivity = use(NativeWorkspaceTabActivityContext);
   const isTabActive = tabActivity?.isActive;
-  const items = useMemo(() => collectToolbarItems(props.children), [props.children]);
+  const pressedItems = useMemo(() => collectToolbarItems(props.children), [props.children]);
+  // Native keeps the items from the last time options were applied, and options are
+  // only reapplied when an item's look changes. A handler whose closure changed
+  // without changing the look (a sheet's checkmark saving a newer choice) would
+  // stay stale, so each item calls through to the latest handler at press time.
+  const latestPressHandlers = useRef<ReadonlyMap<string, () => void>>(new Map());
+  const items = mapToolbarPressHandlers(pressedItems, (path) => () => {
+    latestPressHandlers.current.get(path)?.();
+  });
+  useLayoutEffect(() => {
+    const handlers = new Map<string, () => void>();
+    mapToolbarPressHandlers(pressedItems, (path, onPress) => {
+      handlers.set(path, onPress);
+      return onPress;
+    });
+    latestPressHandlers.current = handlers;
+  }, [latestPressHandlers, pressedItems]);
   // UIKit's search placement item belongs to the toolbar, never a header group.
   const headerItems = useMemo(
     () => items.filter((item): item is NativeStackHeaderItem => item.type !== "searchBarPlacement"),

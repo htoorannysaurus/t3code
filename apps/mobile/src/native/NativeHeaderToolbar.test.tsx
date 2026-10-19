@@ -99,3 +99,32 @@ it.each(["left", "right", "bottom"] as const)(
     expect(harness.openedDocuments).toEqual(["first/guide.pdf"]);
   },
 );
+
+function SaveToolbar(props: {
+  readonly picked: string | null;
+  readonly onSave: (picked: string | null) => void;
+}) {
+  return (
+    <NativeHeaderToolbar placement="right">
+      <NativeHeaderToolbar.Button
+        accessibilityLabel={props.picked ? "Save thread settings" : "Done"}
+        icon="checkmark"
+        onPress={() => props.onSave(props.picked)}
+      />
+    </NativeHeaderToolbar>
+  );
+}
+
+it("a confirm button whose look does not change still saves the latest choice", () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const saved: Array<string | null> = [];
+  root ??= createRoot(document.createElement("div"));
+  for (const picked of [null, "claude-fable-5-1", "claude-sonnet-5-5"]) {
+    act(() => root!.render(<SaveToolbar picked={picked} onSave={(value) => saved.push(value)} />));
+  }
+  const button = harness.renderedItems[0];
+  if (button?.type !== "button") throw new Error("Expected the native save button");
+  button.onPress();
+
+  expect(saved).toEqual(["claude-sonnet-5-5"]);
+});
