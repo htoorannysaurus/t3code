@@ -283,9 +283,15 @@ const config: ExpoConfig = {
     // does not fall back to a personal team (which cannot sign app groups,
     // Sign in with Apple, or push notification entitlements).
     appleTeamId: iosTeamId,
-    associatedDomains: usesT3AppIdServices
-      ? [`applinks:${variant.relyingParty}`, `webcredentials:${variant.relyingParty}`]
-      : [],
+    // An empty list still writes the entitlement, which asks the App ID for the capability.
+    ...(usesT3AppIdServices
+      ? {
+          associatedDomains: [
+            `applinks:${variant.relyingParty}`,
+            `webcredentials:${variant.relyingParty}`,
+          ],
+        }
+      : {}),
     entitlements: {
       "keychain-access-groups": [`$(AppIdentifierPrefix)${variant.iosBundleIdentifier}`],
     },
