@@ -9,7 +9,6 @@ export interface ProviderTextDeltaUpdate {
   readonly itemId: string;
   readonly text: string;
   readonly completed: boolean;
-  readonly interrupted?: boolean;
 }
 
 export interface ProviderTextDeltaCoalescer {
@@ -24,7 +23,6 @@ export interface ProviderTextDeltaCoalescer {
     readonly finalText?: string;
     readonly emitEmpty?: boolean;
   }) => Effect.Effect<string>;
-  readonly interruptItems: (turnId: string, itemIds: ReadonlySet<string>) => Effect.Effect<void>;
   readonly flushTurn: (turnId: string) => Effect.Effect<void>;
 }
 
@@ -52,7 +50,6 @@ export const makeProviderTextDeltaCoalescer = Effect.fn("makeProviderTextDeltaCo
     const drain = (options: {
       readonly predicate: (message: BufferedProviderText) => boolean;
       readonly completed: boolean;
-      readonly interrupted?: boolean;
       readonly onlyDirty: boolean;
       readonly releaseSchedule?: boolean;
     }) =>
@@ -69,7 +66,6 @@ export const makeProviderTextDeltaCoalescer = Effect.fn("makeProviderTextDeltaCo
               itemId: message.itemId,
               text: message.text,
               completed: options.completed,
-              ...(options.interrupted ? { interrupted: true } : {}),
             });
           }
           const emitUpdates = Effect.forEach(updates, input.emit, { discard: true });
@@ -149,13 +145,6 @@ export const makeProviderTextDeltaCoalescer = Effect.fn("makeProviderTextDeltaCo
             return text;
           }),
         ),
-      interruptItems: (turnId, itemIds) =>
-        drain({
-          predicate: (message) => message.turnId === turnId && itemIds.has(message.itemId),
-          completed: true,
-          interrupted: true,
-          onlyDirty: false,
-        }),
       flushTurn: (turnId) =>
         drain({
           predicate: (message) => message.turnId === turnId,
