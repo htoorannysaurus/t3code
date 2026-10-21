@@ -3400,7 +3400,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               const finalAnswerItem = (yield* Ref.get(finalAnswerItemIdsByTurn))
                 .get(update.turnId)
                 ?.has(update.itemId);
-              if (finalAnswerItem) {
+              if (finalAnswerItem && !update.interrupted) {
                 const finalAnswerItemIds = (yield* Ref.get(finalAnswerItemIdsByTurn)).get(
                   update.turnId,
                 );
@@ -3427,7 +3427,9 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               yield* emitProviderEvent({
                 type: "node.updated",
                 driver: CODEX_PROVIDER,
-                node: artifacts.node,
+                node: update.interrupted
+                  ? { ...artifacts.node, status: "interrupted" }
+                  : artifacts.node,
               });
               if (update.completed) {
                 yield* emitProviderEvent({
@@ -3439,9 +3441,11 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               yield* emitProviderEvent({
                 type: "turn_item.updated",
                 driver: CODEX_PROVIDER,
-                turnItem: artifacts.turnItem,
+                turnItem: update.interrupted
+                  ? { ...artifacts.turnItem, status: "interrupted" }
+                  : artifacts.turnItem,
               });
-              if (finalAnswerItem && update.completed) {
+              if (finalAnswerItem && update.completed && !update.interrupted) {
                 yield* Ref.update(completedFinalAnswerTextsByTurn, (current) => {
                   const updated = new Map(current);
                   const texts = new Set(updated.get(update.turnId) ?? []);
@@ -5103,6 +5107,17 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             const completedTextsBefore =
               (yield* Ref.get(completedFinalAnswerTextsByTurn)).get(payload.turnId) ??
               new Set<string>();
+            if (finalAnswer && payload.item.text.length > 0) {
+              // Steering can abandon a final stream without item/completed. Settle it
+              // before its replacement, so turn completion cannot publish it last.
+              const pendingIds = (yield* Ref.get(finalAnswerItemIdsByTurn)).get(payload.turnId);
+              const supersededIds = new Set<string>();
+              for (const id of pendingIds ?? []) {
+                if (id === payload.item.id) break;
+                supersededIds.add(id);
+              }
+              yield* agentMessageDeltas.interruptItems(payload.turnId, supersededIds);
+            }
             const text = yield* agentMessageDeltas.complete({
               turnId: payload.turnId,
               itemId: payload.item.id,
